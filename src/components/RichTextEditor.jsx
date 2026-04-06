@@ -1,9 +1,23 @@
-import React from 'react';
+import React, { useEffect, useState, useRef } from 'react';
+import EmojiPicker from 'emoji-picker-react';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 
 const MenuBar = ({ editor }) => {
+  const [showEmoji, setShowEmoji] = useState(false);
+  const emojiRef = useRef(null);
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (emojiRef.current && !emojiRef.current.contains(event.target)) {
+        setShowEmoji(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   if (!editor) {
     return null;
   }
@@ -65,7 +79,7 @@ const MenuBar = ({ editor }) => {
   ];
 
   return (
-    <div className="editor-menu-bar animate-fade-in d-flex gap-1 mb-4">
+    <div className="editor-menu-bar animate-fade-in d-flex gap-1 mb-4 position-relative">
       {buttons.map((btn, i) => (
         <button
           key={i}
@@ -79,11 +93,46 @@ const MenuBar = ({ editor }) => {
           {btn.icon}
         </button>
       ))}
+
+      <div ref={emojiRef}>
+        <button
+          onClick={(e) => {
+            e.preventDefault();
+            setShowEmoji(!showEmoji);
+          }}
+          className={`btn-editor-tool ${showEmoji ? 'active' : ''}`}
+          title="Add Emoji"
+        >
+          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
+            <line x1="9" y1="9" x2="9.01" y2="9"></line>
+            <line x1="15" y1="9" x2="15.01" y2="9"></line>
+          </svg>
+        </button>
+
+        {showEmoji && (
+          <div className="emoji-picker-container shadow-lg animate-fade-in">
+            <EmojiPicker 
+              onEmojiClick={(emojiData) => {
+                editor.chain().focus().insertContent(emojiData.emoji).run();
+                setShowEmoji(false);
+              }}
+              theme={document.documentElement.getAttribute('data-theme') === 'dark' ? 'dark' : 'light'}
+              lazyLoadEmojis={true}
+              searchDisabled={true}
+              skinTonesDisabled={true}
+              width={280}
+              height={350}
+            />
+          </div>
+        )}
+      </div>
     </div>
   );
 };
 
-const RichTextEditor = ({ content, onChange, placeholder = 'Begin your reflection here...' }) => {
+const RichTextEditor = ({ content, onChange, editorRef, placeholder = 'Begin your reflection here...' }) => {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -96,6 +145,12 @@ const RichTextEditor = ({ content, onChange, placeholder = 'Begin your reflectio
       onChange(editor.getHTML());
     },
   });
+
+  useEffect(() => {
+    if (editorRef && editor) {
+      editorRef.current = editor;
+    }
+  }, [editor, editorRef]);
 
   return (
     <div className="rich-text-editor-wrapper">

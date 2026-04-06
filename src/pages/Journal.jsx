@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { authService } from '../services/authService';
 import { auth } from '../lib/firebase';
@@ -11,6 +11,13 @@ import { confirmLogout } from '../utils/alertUtils';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import RichTextEditor from '../components/RichTextEditor';
 import MoodSelector, { MOODS } from '../components/MoodSelector';
+
+const isOnlyEmojis = (htmlContent) => {
+  if (!htmlContent) return false;
+  const plainText = htmlContent.replace(/<[^>]*>/g, '').replace(/\s+/g, '');
+  if (!plainText) return false;
+  return /^[\p{Emoji_Presentation}\p{Extended_Pictographic}]+$/u.test(plainText);
+};
 
 const getEntryPreview = (content) => {
   if (!content) return { title: '', body: '', hasMore: false };
@@ -67,6 +74,9 @@ function Journal() {
   const navigate = useNavigate();
   const location = useLocation();
   const { isCompact } = useSettings();
+  
+  const editorRef = useRef(null);
+  const recognitionRef = useRef(null);
 
   useEffect(() => {
     if (location.state?.startWriting) {
@@ -76,39 +86,74 @@ function Journal() {
     }
   }, [location]);
 
-  // Speech Recognition Logic
-  let recognition = null;
-  if ('webkitSpeechRecognition' in window) {
-    recognition = new window.webkitSpeechRecognition();
-    recognition.continuous = true;
-    recognition.interimResults = true;
-  }
+  // Speech Recognition Initialization
+  useEffect(() => {
+    if ('webkitSpeechRecognition' in window) {
+      const recognition = new window.webkitSpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      
+      recognition.onresult = (event) => {
+        let currentInterim = "";
+        let finalTranscripts = "";
+        
+        for (let i = event.resultIndex; i < event.results.length; i++) {
+          if (event.results[i].isFinal) {
+            finalTranscripts += event.results[i][0].transcript + " ";
+          } else {
+            currentInterim += event.results[i][0].transcript;
+          }
+        }
+        
+        if (finalTranscripts && editorRef.current) {
+           // Insert via TipTap editor commands directly, focusing first in case the editor lost focus!
+           editorRef.current.chain().focus('end').insertContent(finalTranscripts).run();
+           // After insertion, TipTap's onUpdate will internally sync `newThought` state 
+           // but we explicitly sync it here just in case.
+           setNewThought(editorRef.current.getHTML());
+        }
+        setInterimTranscript(currentInterim);
+      };
+      
+      recognition.onerror = (event) => {
+        if (event.error !== 'no-speech') {
+          console.warn("Speech recognition error:", event.error);
+        }
+        if (event.error === 'not-allowed' || event.error === 'network') {
+          setIsRecording(false);
+          setInterimTranscript("");
+        }
+      };
+
+      recognition.onend = () => {
+        setIsRecording(false);
+        setInterimTranscript("");
+      };
+      
+      recognitionRef.current = recognition;
+    }
+    
+    return () => {
+       if (recognitionRef.current) {
+          recognitionRef.current.stop();
+       }
+    };
+  }, []);
 
   const toggleRecording = () => {
     if (isRecording) {
-      window.recognitionInstance?.stop();
+      recognitionRef.current?.stop();
       setIsRecording(false);
       setInterimTranscript("");
     } else {
-      if (recognition) {
-        recognition.onresult = (event) => {
-          let currentInterim = "";
-          for (let i = event.resultIndex; i < event.results.length; i++) {
-            if (event.results[i].isFinal) {
-              setNewThought(prev => prev + (prev ? ' ' : '') + event.results[i][0].transcript);
-            } else {
-              currentInterim += event.results[i][0].transcript;
-            }
-          }
-          setInterimTranscript(currentInterim);
-        };
-        recognition.onend = () => {
+      if (recognitionRef.current) {
+        try {
+          recognitionRef.current.start();
+          setIsRecording(true);
+        } catch (e) {
+          console.warn("Speech recognition already started or failed:", e);
           setIsRecording(false);
-          setInterimTranscript("");
-        };
-        recognition.start();
-        window.recognitionInstance = recognition;
-        setIsRecording(true);
+        }
       } else {
         alert("Speech recognition isn't supported in this browser.");
       }
@@ -408,6 +453,7 @@ function Journal() {
                   <RichTextEditor 
                     content={newThought} 
                     onChange={setNewThought}
+                    editorRef={editorRef}
                     placeholder="The unwritten title... Begin your reflection here..."
                   />
                 </div>
@@ -428,6 +474,7 @@ function Journal() {
                 ) : entries.length > 0 ? (
                   entries.map(entry => {
                     const preview = getEntryPreview(entry.content);
+                    const isEmojiOnly = isOnlyEmojis(entry.content);
                     return (
                       <div
                         key={entry.id}
@@ -463,10 +510,16 @@ function Journal() {
                         </div>
 
                         <div className="timeline-content">
-                          <h2 className="timeline-title">{preview.title}</h2>
-                          <p className="timeline-body m-0">{preview.body}</p>
-                          {preview.hasMore && (
-                            <span className="timeline-continue">Continue reading →</span>
+                          {isEmojiOnly ? (
+                            <div className="timeline-emoji-only animate-fade-in">{entry.content.replace(/<[^>]*>/g, '').trim()}</div>
+                          ) : (
+                            <>
+                              <h2 className="timeline-title">{preview.title}</h2>
+                              <p className="timeline-body m-0">{preview.body}</p>
+                              {preview.hasMore && (
+                                <span className="timeline-continue">Continue reading →</span>
+                              )}
+                            </>
                           )}
                         </div>
 

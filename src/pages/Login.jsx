@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '../services/authService';
+import { auth } from '../lib/firebase';
 import PublicNavbar from '../components/PublicNavbar';
 
 function Login() {
@@ -11,6 +12,16 @@ function Login() {
   const [errorMessage, setErrorMessage] = useState("");
   const [isLoggingIn, setIsLoggingIn] = useState(false);
   const [isGuestLoggingIn, setIsGuestLoggingIn] = useState(false);
+
+  // Redirect users who are already logged in
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((user) => {
+      if (user) {
+        navigate('/journal');
+      }
+    });
+    return () => unsubscribe();
+  }, [navigate]);
 
   useEffect(() => {
     // Check if the user is returning from a magic link

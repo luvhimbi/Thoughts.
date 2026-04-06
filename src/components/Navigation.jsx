@@ -33,7 +33,7 @@ const Navigation = ({ onAddEntry, isDesktop }) => {
   }
 
   return (
-    <nav className="bottom-nav d-md-none position-fixed bottom-0 start-0 w-100 d-flex justify-content-between align-items-end pb-2 px-2" style={{ height: '75px', backgroundColor: 'rgba(255, 255, 255, 0.95)', backdropFilter: 'blur(10px)', borderTop: '1px solid var(--border-color)', zIndex: 1000 }}>
+    <nav className="bottom-nav d-md-none position-fixed bottom-0 start-0 w-100 d-flex justify-content-between align-items-end pb-2 px-2" style={{ height: '75px', zIndex: 1000 }}>
       {/* Today */}
       <Link to="/journal" className={`nav-item d-flex flex-column align-items-center text-decoration-none ${isActive('/journal') ? 'text-dark' : 'text-secondary'}`} style={{ flex: '1', minWidth: '0' }}>
         <span className="icon" style={{ fontSize: '1.2rem', lineHeight: 1 }}>{isActive('/journal') ? '●' : '○'}</span>
@@ -55,8 +55,8 @@ const Navigation = ({ onAddEntry, isDesktop }) => {
             width: '52px', 
             height: '52px', 
             fontSize: '1.5rem', 
-            backgroundColor: '#000',
-            color: '#fff',
+            backgroundColor: 'var(--text-primary)',
+            color: 'var(--bg-primary)',
             boxShadow: '0 8px 20px rgba(0,0,0,0.15)'
           }}
         >

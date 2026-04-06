@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { journalService } from '../services/journalService';
 import { auth } from '../lib/firebase';
@@ -11,6 +11,14 @@ import MoodSelector, { MOODS } from '../components/MoodSelector';
 
 function ViewEntry() {
   const { id } = useParams();
+
+  const isOnlyEmojis = (htmlContent) => {
+    if (!htmlContent) return false;
+    const plainText = htmlContent.replace(/<[^>]*>/g, '').replace(/\s+/g, '');
+    if (!plainText) return false;
+    return /^[\p{Emoji_Presentation}\p{Extended_Pictographic}]+$/u.test(plainText);
+  };
+
   const [user, setUser] = useState(null);
   const [entry, setEntry] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -22,6 +30,7 @@ function ViewEntry() {
   const [saving, setSaving] = useState(false);
   const navigate = useNavigate();
   const { voiceTone } = useSettings();
+  const speakingRef = useRef(false);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -49,20 +58,24 @@ function ViewEntry() {
     });
 
     return () => {
+      speakingRef.current = false;
       unsubscribe();
       window.speechSynthesis.cancel();
     };
   }, [id, navigate]);
 
   const speakSegment = (segments, index) => {
-    if (index >= segments.length) {
+    if (!speakingRef.current || index >= segments.length) {
       setIsSpeaking(false);
       setSpeakingIndex(-1);
+      speakingRef.current = false;
       return;
     }
 
     setSpeakingIndex(index);
     const utterance = new SpeechSynthesisUtterance(segments[index]);
+    window.__currentUtterance = utterance; // Prevent garbage collection bug
+    
     const voices = window.speechSynthesis.getVoices();
     let selectedVoice = null;
 
@@ -82,10 +95,16 @@ function ViewEntry() {
 
     if (selectedVoice) utterance.voice = selectedVoice;
 
-    utterance.onend = () => speakSegment(segments, index + 1);
-    utterance.onerror = () => {
-      setIsSpeaking(false);
-      setSpeakingIndex(-1);
+    utterance.onend = () => {
+      if (speakingRef.current) speakSegment(segments, index + 1);
+    };
+    
+    utterance.onerror = (e) => {
+      if (e.error !== 'canceled' && speakingRef.current) {
+        setIsSpeaking(false);
+        setSpeakingIndex(-1);
+        speakingRef.current = false;
+      }
     };
 
     window.speechSynthesis.speak(utterance);
@@ -95,27 +114,50 @@ function ViewEntry() {
     if (!entry) return;
 
     if (isSpeaking) {
+      speakingRef.current = false;
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
       setSpeakingIndex(-1);
       return;
     }
 
+    window.speechSynthesis.cancel(); // Clear any stuck speech queue
+
     const stripHtml = (html) => {
+      let processed = html.replace(/<br\s*\/?>/gi, '\n');
+      processed = processed.replace(/<\/p>/gi, '\n\n');
+      processed = processed.replace(/<\/div>/gi, '\n');
+      processed = processed.replace(/<\/h[1-6]>/gi, '\n\n');
+      processed = processed.replace(/<\/li>/gi, '\n');
       const tmp = document.createElement("DIV");
-      tmp.innerHTML = html;
+      tmp.innerHTML = processed;
       return tmp.textContent || tmp.innerText || "";
     };
 
     const plainText = stripHtml(entry.content);
-    const segments = plainText.split('\n').filter(s => s.trim().length > 0);
+    
+    const chunks = [];
+    plainText.split('\n').forEach(line => {
+      const trimmed = line.trim();
+      if (!trimmed) return;
+      // Split long lines by punctuation to keep chunks manageable for text-to-speech
+      const sentenceLike = trimmed.replace(/([.!?])\s+/g, "$1~").split("~");
+      sentenceLike.forEach(s => {
+          if (s.trim().length > 0) chunks.push(s.trim());
+      });
+    });
+
+    if (chunks.length === 0) return;
+
     setIsSpeaking(true);
-    speakSegment(segments, 0);
+    speakingRef.current = true;
+    speakSegment(chunks, 0);
   };
 
   const handleEdit = () => {
     setIsEditing(true);
     if (isSpeaking) {
+      speakingRef.current = false;
       window.speechSynthesis.cancel();
       setIsSpeaking(false);
       setSpeakingIndex(-1);
@@ -236,7 +278,7 @@ function ViewEntry() {
             <div className={`${isSpeaking ? 'reading-mode-active' : ''}`}>
               <article className="entry-content mb-5 px-0">
                 <div 
-                  className="rich-content-view"
+                  className={`rich-content-view ${isOnlyEmojis(entry.content) ? 'emoji-only-entry' : ''}`}
                   dangerouslySetInnerHTML={{ __html: entry.content }}
                   style={{ 
                     fontSize: '1.2rem', 

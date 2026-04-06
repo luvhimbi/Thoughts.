@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Link, useLocation } from 'react-router-dom';
+import { auth } from '../lib/firebase';
 
 /**
  * PublicNavbar — shared top navigation for Landing, Login, Register, and Legal pages.
@@ -13,6 +14,13 @@ const PublicNavbar = () => {
   const location = useLocation();
   const [menuOpen, setMenuOpen] = useState(false);
   const [scrolled, setScrolled] = useState(false);
+  const [user, setUser] = useState(null);
+
+  /* ── Listen to Auth State ── */
+  useEffect(() => {
+    const unsubscribe = auth.onAuthStateChanged((u) => setUser(u));
+    return () => unsubscribe();
+  }, []);
 
   /* ── Scroll listener to add glass-effect background ── */
   useEffect(() => {
@@ -46,7 +54,11 @@ const PublicNavbar = () => {
       >
         <div className="public-navbar__inner container">
           {/* Brand */}
-          <Link to="/" className="public-navbar__brand" onClick={closeMenu}>
+          <Link 
+            to={user ? '/journal' : (location.pathname === '/login' || location.pathname === '/register' ? location.pathname : '/')} 
+            className="public-navbar__brand" 
+            onClick={closeMenu}
+          >
             <span className="thoughts-brand">Thoughts.</span>
           </Link>
 
@@ -64,15 +76,23 @@ const PublicNavbar = () => {
             >
               How It Works
             </a>
-            <Link
-              to="/login"
-              className={`public-navbar__link ${isActive('/login') ? 'active' : ''}`}
-            >
-              Sign In
-            </Link>
-            <Link to="/register" className="public-navbar__cta">
-              Get Started
-            </Link>
+            {user ? (
+              <Link to="/journal" className="public-navbar__cta">
+                Go to Dashboard
+              </Link>
+            ) : (
+              <>
+                <Link
+                  to="/login"
+                  className={`public-navbar__link ${isActive('/login') ? 'active' : ''}`}
+                >
+                  Sign In
+                </Link>
+                <Link to="/register" className="public-navbar__cta">
+                  Get Started
+                </Link>
+              </>
+            )}
           </div>
 
           {/* Mobile hamburger */}
@@ -104,12 +124,20 @@ const PublicNavbar = () => {
 
           <div className="public-navbar__drawer-divider" />
 
-          <Link to="/login" className="public-navbar__drawer-link" onClick={closeMenu}>
-            Sign In
-          </Link>
-          <Link to="/register" className="public-navbar__drawer-cta" onClick={closeMenu}>
-            Get Started — it's free
-          </Link>
+          {user ? (
+            <Link to="/journal" className="public-navbar__drawer-cta" onClick={closeMenu}>
+              Go to Dashboard
+            </Link>
+          ) : (
+            <>
+              <Link to="/login" className="public-navbar__drawer-link" onClick={closeMenu}>
+                Sign In
+              </Link>
+              <Link to="/register" className="public-navbar__drawer-cta" onClick={closeMenu}>
+                Get Started — it's free
+              </Link>
+            </>
+          )}
         </div>
       </div>
 
