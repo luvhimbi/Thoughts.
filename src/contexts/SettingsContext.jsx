@@ -12,10 +12,20 @@ export const useSettings = () => {
 
 export const SettingsProvider = ({ children }) => {
   // Load initial settings from localStorage or use defaults
-  const [isDarkMode, setIsDarkMode] = useState(() => {
-    const saved = localStorage.getItem('thoughts_darkMode');
-    return saved ? JSON.parse(saved) : false;
+  const [themeMode, setThemeMode] = useState(() => {
+    const saved = localStorage.getItem('thoughts_themeMode');
+    if (saved) return saved;
+    
+    // Fallback to older setting if it exists
+    const oldSaved = localStorage.getItem('thoughts_darkMode');
+    if (oldSaved !== null) {
+      return JSON.parse(oldSaved) ? 'dark' : 'light';
+    }
+    
+    return 'system';
   });
+
+  const [activeTheme, setActiveTheme] = useState('light');
 
   const [isCompact, setIsCompact] = useState(() => {
     const saved = localStorage.getItem('thoughts_compactView');
@@ -30,14 +40,37 @@ export const SettingsProvider = ({ children }) => {
     return localStorage.getItem('thoughts_fontFamily') || 'Poppins';
   });
 
-  // Apply dark mode theme to document body
+  // Apply dark mode theme to document body and listen for system changes
   useEffect(() => {
-    if (isDarkMode) {
-      document.documentElement.setAttribute('data-theme', 'dark');
-    } else {
-      document.documentElement.removeAttribute('data-theme');
-    }
-  }, [isDarkMode]);
+    const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
+    
+    const applyTheme = () => {
+      let isDark = false;
+      if (themeMode === 'dark') {
+        isDark = true;
+      } else if (themeMode === 'system') {
+        isDark = mediaQuery.matches;
+      }
+
+      setActiveTheme(isDark ? 'dark' : 'light');
+      
+      if (isDark) {
+        document.documentElement.setAttribute('data-theme', 'dark');
+      } else {
+        document.documentElement.removeAttribute('data-theme');
+      }
+    };
+
+    applyTheme();
+
+    // Listen for system preference changes
+    const listener = () => {
+      if (themeMode === 'system') applyTheme();
+    };
+    
+    mediaQuery.addEventListener('change', listener);
+    return () => mediaQuery.removeEventListener('change', listener);
+  }, [themeMode]);
 
   // Apply font family to document body
   useEffect(() => {
@@ -46,15 +79,17 @@ export const SettingsProvider = ({ children }) => {
 
   // Persist settings
   useEffect(() => {
-    localStorage.setItem('thoughts_darkMode', JSON.stringify(isDarkMode));
+    localStorage.setItem('thoughts_themeMode', themeMode);
     localStorage.setItem('thoughts_compactView', JSON.stringify(isCompact));
     localStorage.setItem('thoughts_voiceTone', voiceTone);
     localStorage.setItem('thoughts_fontFamily', fontFamily);
-  }, [isDarkMode, isCompact, voiceTone, fontFamily]);
+  }, [themeMode, isCompact, voiceTone, fontFamily]);
 
   const value = {
-    isDarkMode,
-    setIsDarkMode,
+    themeMode,
+    setThemeMode,
+    isDarkMode: activeTheme === 'dark',
+    setIsDarkMode: (val) => setThemeMode(val ? 'dark' : 'light'), // Backwards compatibility
     isCompact,
     setIsCompact,
     voiceTone,

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useSettings } from '../contexts/SettingsContext';
 import DesignSelector from '../components/DesignSelector';
 import { showReleaseSuccess } from '../utils/alertUtils';
+import confetti from 'canvas-confetti';
 
 const Release = () => {
   const [text, setText] = useState('');
@@ -195,6 +196,14 @@ const Release = () => {
       } else {
         cancelAnimationFrame(animationFrame);
         setIsComplete(true);
+        
+        confetti({
+          particleCount: 120,
+          spread: 80,
+          origin: { y: 0.6 },
+          colors: ['#FFD700', '#FF8C00', '#FF6347', '#4682B4', '#32CD32']
+        });
+        
         showReleaseSuccess().then(() => {
           handleReset();
         });

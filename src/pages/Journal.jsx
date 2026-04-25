@@ -13,6 +13,8 @@ import RichTextEditor, { EditorTools } from '../components/RichTextEditor';
 import MoodSelector, { MOODS } from '../components/MoodSelector';
 import TemplateSelector from '../components/TemplateSelector';
 import DesignSelector from '../components/DesignSelector';
+import confetti from 'canvas-confetti';
+
 
 const isOnlyEmojis = (htmlContent) => {
   if (!htmlContent) return false;
@@ -120,6 +122,7 @@ function Journal() {
   const [showMoreMenu, setShowMoreMenu] = useState(false);
   const [draftStatus, setDraftStatus] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [userStreakGoal, setUserStreakGoal] = useState(null);
   const navigate = useNavigate();
   const location = useLocation();
   const { isCompact } = useSettings();
@@ -296,6 +299,10 @@ function Journal() {
           // Store the streak in the database
           const stats = calculateStats(fetchedEntries);
           authService.updateUserStreak(currentUser.uid, stats.streak);
+
+          // Get user streak goal
+          const userData = await authService.getUserData(currentUser.uid);
+          setUserStreakGoal(userData?.streakGoal || null);
         } catch (err) {
           console.error("Error initializing journal:", err);
           setError("We couldn't load your journal. Please check your connection or try again.");
@@ -342,12 +349,24 @@ function Journal() {
           }),
           createdAt: { toMillis: () => Date.now() }
         };
-        setEntries([newEntry, ...entries]);
+        const newEntries = [newEntry, ...entries];
+        setEntries(newEntries);
+        const currentStreak = calculateStats(newEntries).streak;
+
         clearDraft();
         setNewThought("");
         setMood(null);
         setDesign('minimal');
         setIsWriting(false);
+
+        navigate('/journal/celebration', { 
+          state: { 
+            isFirst: entries.length === 0,
+            streak: currentStreak,
+            hasGoal: !!userStreakGoal,
+            goal: userStreakGoal 
+          } 
+        });
       } catch (error) {
         alert("Failed to save your thought. Please try again.");
       } finally {
@@ -386,6 +405,17 @@ function Journal() {
     e.stopPropagation();
     try {
       await journalService.deleteEntry(id);
+      
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      confetti({
+        particleCount: 80,
+        spread: 60,
+        origin: { y: 0.8 },
+        colors: isDark 
+            ? ['#EAEAEA', '#FFFFFF', '#A0A0A0', '#4A4A4A'] 
+            : ['#2C2C2C', '#000000', '#646464', '#A0A0A0']
+      });
+      
       setEntries(entries.filter(entry => entry.id !== id));
       setReleasingEntryId(null);
     } catch (error) {
@@ -437,6 +467,8 @@ function Journal() {
       </div>
     );
   }
+
+  if (!user) return null;
 
   if (!user) return null;
 
@@ -566,17 +598,15 @@ function Journal() {
                     </button>
                   )}
                 </div>
-                {calculateStats(entries).streak > 0 && (
-                  <Link
-                    to="/journal/streak"
-                    className="d-flex align-items-center justify-content-center gap-1 rounded-pill bg-white border text-decoration-none transition-all hover-lift animate-fade-in"
-                    style={{ height: '56px', padding: '0 20px', minWidth: '80px', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}
-                    title="View Streak Calendar"
-                  >
-                    <span style={{ fontSize: '1.2rem', color: 'var(--text-primary)' }}>✦</span>
-                    <span className="fw-bold text-dark" style={{ fontSize: '1rem' }}>{calculateStats(entries).streak}</span>
-                  </Link>
-                )}
+                <Link
+                  to="/journal/streak"
+                  className="d-flex align-items-center justify-content-center gap-1 rounded-pill bg-white border text-decoration-none transition-all hover-lift animate-fade-in"
+                  style={{ height: '56px', padding: '0 20px', minWidth: '80px', boxShadow: '0 4px 12px rgba(0,0,0,0.02)' }}
+                  title="View Streak Calendar"
+                >
+                  <span style={{ fontSize: '1.2rem', color: 'var(--text-primary)' }}>✦</span>
+                  <span className="fw-bold text-dark" style={{ fontSize: '1rem' }}>{calculateStats(entries).streak}</span>
+                </Link>
               </header>
             )}
 
@@ -852,6 +882,7 @@ function Journal() {
                 )}
               </div>
             )}
+
           </div>
         </main >
       </div >

@@ -226,5 +226,34 @@ export const authService = {
     } catch (error) {
       console.error("Error updating streak in DB:", error);
     }
+  },
+
+  /**
+   * Updates the user's streak goal
+   */
+  async updateUserStreakGoal(userId, goal) {
+    try {
+      const userRef = doc(db, "users", userId);
+      await setDoc(userRef, { streakGoal: goal }, { merge: true });
+    } catch (error) {
+      console.error("Error updating streak goal in DB:", error);
+    }
+  },
+
+  /**
+   * Gets additional user data like streak goal
+   */
+  async getUserData(userId) {
+    try {
+      const userRef = doc(db, "users", userId);
+      const userSnap = await getDoc(userRef);
+      if (userSnap.exists()) {
+        return userSnap.data();
+      }
+      return null;
+    } catch (error) {
+      console.error("Error getting user data:", error);
+      return null;
+    }
   }
 };

@@ -17,7 +17,7 @@ function Settings() {
   const [newName, setNewName] = useState("");
   const [installPrompt, setInstallPrompt] = useState(null);
   const {
-    isDarkMode, setIsDarkMode,
+    themeMode, setThemeMode,
     voiceTone, setVoiceTone,
     fontFamily, setFontFamily
   } = useSettings();
@@ -184,17 +184,27 @@ function Settings() {
             <div className="bg-white rounded-4 border shadow-sm">
               <div className="d-flex justify-content-between align-items-center p-4 border-bottom">
                 <div>
-                  <h5 className="m-0 h6 text-dark">Night Mode</h5>
-                  <p className="m-0 text-secondary x-small mt-1">Calming dark aesthetics for your eyes.</p>
+                  <h5 className="m-0 h6 text-dark">App Theme</h5>
+                  <p className="m-0 text-secondary x-small mt-1">Follow system settings or force dark/light.</p>
                 </div>
-                <div className="form-check form-switch m-0">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    role="switch"
-                    checked={isDarkMode}
-                    onChange={() => setIsDarkMode(!isDarkMode)}
-                  />
+                <div className="position-relative">
+                  <select
+                    className="form-select border-0 bg-light text-dark fw-500"
+                    value={themeMode}
+                    onChange={(e) => setThemeMode(e.target.value)}
+                    style={{
+                      appearance: 'none',
+                      paddingRight: '2rem',
+                      cursor: 'pointer',
+                      borderRadius: '8px',
+                      fontSize: '0.9rem'
+                    }}
+                  >
+                    <option value="system">System Default</option>
+                    <option value="light">Light Mode</option>
+                    <option value="dark">Dark Mode</option>
+                  </select>
+                  <span className="position-absolute text-secondary" style={{ right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.8rem' }}>▼</span>
                 </div>
               </div>
               <div className="d-flex justify-content-between align-items-center p-4 border-bottom">

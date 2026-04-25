@@ -5,10 +5,12 @@ import GuestWarning from '../components/GuestWarning';
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { journalService } from '../services/journalService';
+import { authService } from '../services/authService';
 
 function StreakCalendar() {
   const [user, setUser] = useState(null);
   const [entries, setEntries] = useState([]);
+  const [streakGoal, setStreakGoal] = useState(null);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
   const isOnline = useOnlineStatus();
@@ -20,6 +22,9 @@ function StreakCalendar() {
         try {
           const fetchedEntries = await journalService.getEntries(currentUser.uid);
           setEntries(fetchedEntries || []);
+
+          const userData = await authService.getUserData(currentUser.uid);
+          setStreakGoal(userData?.streakGoal || null);
         } catch (error) {
           console.error("Error loading entries for streak calendar:", error);
         }
@@ -43,35 +48,45 @@ function StreakCalendar() {
   if (!user) return null;
 
   // Process Dates
-  const sortedDates = Array.from(new Set(entries.map(e => {
+  const getDayStr = (d) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+
+  const entriesDatesSet = new Set(entries.map(e => {
     const d = e.createdAt?.toDate ? e.createdAt.toDate() : new Date(e.dateString);
-    return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
-  }))).sort((a, b) => b - a);
+    return getDayStr(d);
+  }));
+
+  const sortedDatesList = Array.from(entriesDatesSet).map(ds => {
+    const [y, m, d] = ds.split('-').map(Number);
+    return new Date(y, m, d).getTime();
+  }).sort((a, b) => a - b);
 
   const today = new Date();
-  const startDay = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
-  const oneDay = 86400000;
+  const todayStr = getDayStr(today);
 
   // Calculate Current Streak
   let currentStreak = 0;
-  let currentCheck = sortedDates.includes(startDay) ? startDay : startDay - oneDay;
+  let checkDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-  for (const date of sortedDates) {
-    if (date === currentCheck) {
-      currentStreak++;
-      currentCheck -= oneDay;
-    } else if (date < currentCheck) {
-      break;
-    }
+  // If today is missing, start checking from yesterday
+  if (!entriesDatesSet.has(todayStr)) {
+    checkDate.setDate(checkDate.getDate() - 1);
+  }
+
+  while (entriesDatesSet.has(getDayStr(checkDate))) {
+    currentStreak++;
+    checkDate.setDate(checkDate.getDate() - 1);
   }
 
   // Calculate All-Time Best (Longest Streak)
   let longestStreak = 0;
-  if (sortedDates.length > 0) {
+  if (sortedDatesList.length > 0) {
     let tempStreak = 1;
-    const ascendingDates = [...sortedDates].sort((a, b) => a - b);
-    for (let i = 0; i < ascendingDates.length - 1; i++) {
-      if (ascendingDates[i + 1] - ascendingDates[i] === oneDay) {
+    for (let i = 0; i < sortedDatesList.length - 1; i++) {
+      const d1 = new Date(sortedDatesList[i]);
+      const d2 = new Date(sortedDatesList[i + 1]);
+      const diffDays = Math.round((d2 - d1) / 86400000);
+
+      if (diffDays === 1) {
         tempStreak++;
       } else {
         longestStreak = Math.max(longestStreak, tempStreak);
@@ -81,18 +96,28 @@ function StreakCalendar() {
     longestStreak = Math.max(longestStreak, tempStreak);
   }
 
+  // FIX: Ensure Best Streak is at least the Current Streak
+  const bestStreak = Math.max(longestStreak, currentStreak);
+
+  // Goal Progress Calculation
+  const progressPercent = streakGoal ? Math.min((currentStreak / streakGoal) * 100, 100) : 0;
+
   // Generate Calendar Grid (Last 35 Days)
   const daysInGrid = 35;
   const gridDates = [];
-  const startGrid = startDay - (daysInGrid - 1) * oneDay;
+  const startGridDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  startGridDate.setDate(startGridDate.getDate() - (daysInGrid - 1));
 
   for (let i = 0; i < daysInGrid; i++) {
-    const dateTs = startGrid + i * oneDay;
+    const currentGridDate = new Date(startGridDate);
+    currentGridDate.setDate(startGridDate.getDate() + i);
+    const dateStr = getDayStr(currentGridDate);
+
     gridDates.push({
-      timestamp: dateTs,
-      hasEntry: sortedDates.includes(dateTs),
-      isToday: dateTs === startDay,
-      dateObj: new Date(dateTs)
+      timestamp: currentGridDate.getTime(),
+      hasEntry: entriesDatesSet.has(dateStr),
+      isToday: dateStr === todayStr,
+      dateObj: currentGridDate
     });
   }
 
@@ -128,15 +153,41 @@ function StreakCalendar() {
           {/* Stats Row */}
           <div className="row w-100 mb-4 g-3 animate-slide-up" style={{ animationDelay: '0.1s' }}>
             <div className="col-6">
-              <div className="bg-white border rounded-4 p-3 text-center">
+              <div className="bg-white border rounded-4 p-3 text-center h-100">
                 <span className="d-block text-secondary xx-small fw-bold text-uppercase mb-1">Total Entries</span>
-                <span className="h5 fw-bold text-dark">{entries.length}</span>
+                <span className="h5 fw-bold text-dark m-0">{entries.length}</span>
               </div>
             </div>
             <div className="col-6">
-              <div className="bg-white border rounded-4 p-3 text-center">
+              <div className="bg-white border rounded-4 p-3 text-center h-100">
                 <span className="d-block text-secondary xx-small fw-bold text-uppercase mb-1">Best Streak</span>
-                <span className="h5 fw-bold text-dark">{longestStreak}</span>
+                <span className="h5 fw-bold text-dark m-0">{bestStreak}</span>
+              </div>
+            </div>
+
+            {/* Goal Progress Section */}
+            <div className="col-12">
+              <div className="bg-white border rounded-4 p-4">
+                <div className="d-flex justify-content-between align-items-end mb-2">
+                  <div>
+                    <span className="d-block text-secondary xx-small fw-bold text-uppercase">Goal Progress</span>
+                    <span className="h6 fw-bold text-dark m-0">{streakGoal ? `${streakGoal} Days` : 'Set a Goal'}</span>
+                  </div>
+                  <span className="small fw-bold text-secondary">{Math.round(progressPercent)}%</span>
+                </div>
+                <div className="progress" style={{ height: '8px', backgroundColor: 'var(--bg-secondary)', borderRadius: '10px', overflow: 'hidden' }}>
+                  <div
+                    className="progress-bar bg-dark"
+                    role="progressbar"
+                    style={{ width: `${progressPercent}%`, transition: 'width 0.6s ease' }}
+                    aria-valuenow={progressPercent}
+                    aria-valuemin="0"
+                    aria-valuemax="100"
+                  ></div>
+                </div>
+                {streakGoal && currentStreak >= streakGoal && (
+                  <p className="xx-small text-success fw-bold text-uppercase mt-2 mb-0">Goal Reached! 🏆</p>
+                )}
               </div>
             </div>
           </div>
@@ -150,10 +201,7 @@ function StreakCalendar() {
 
             <div className="d-grid gap-2" style={{ gridTemplateColumns: 'repeat(7, 1fr)' }}>
               {gridDates.map((day, idx) => (
-                <div
-                  key={idx}
-                  className="d-flex flex-column align-items-center gap-1"
-                >
+                <div key={idx} className="d-flex flex-column align-items-center gap-1">
                   <div
                     className="rounded-3 transition-all w-100 d-flex align-items-center justify-content-center fw-bold"
                     style={{
@@ -184,15 +232,6 @@ function StreakCalendar() {
               <span className="text-uppercase">Today</span>
             </div>
           </div>
-
-          {/* Encouragement */}
-          <div className="text-center mt-5 px-4 animate-slide-up" style={{ animationDelay: '0.3s' }}>
-            <div className="mb-3" style={{ fontSize: '1.5rem opacity: 0.5' }}>✦</div>
-            <p className="text-secondary italic mb-0" style={{ fontSize: '0.95rem', lineHeight: 1.6, fontStyle: 'italic' }}>
-              "It does not matter how slowly you go as long as you do not stop."
-            </p>
-          </div>
-
         </main>
       </div>
     </>

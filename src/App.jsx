@@ -15,6 +15,7 @@ import Release from './pages/Release';
 import HelpAndLegal from './pages/HelpAndLegal';
 import StreakCalendar from './pages/StreakCalendar';
 import NotFound from './pages/NotFound';
+import Celebration from './pages/Celebration';
 
 function App() {
   return (
@@ -27,6 +28,7 @@ function App() {
           <Route path="/journal" element={<Journal />} />
           <Route path="/journal/reflections" element={<Reflections />} />
           <Route path="/journal/streak" element={<StreakCalendar />} />
+          <Route path="/journal/celebration" element={<Celebration />} />
           <Route path="/journal/view/:id" element={<ViewEntry />} />
           <Route path="/journal/settings" element={<Settings />} />
           <Route path="/journal/guides" element={<Affirmations />} />

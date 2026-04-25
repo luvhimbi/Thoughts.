@@ -20,12 +20,12 @@ const STEPS = [
 
 const FEATURES = [
   { icon: '✎',  title: 'Minimal Focus',        desc: 'An interface that disappears, leaving only you and your thoughts.' },
+  { icon: '◈',  title: 'Activity Streaks',      desc: 'Build a consistent journaling habit with beautiful, motivating streak tracking.' },
+  { icon: '✧',  title: 'Daily Affirmations',    desc: 'Start your day with purpose using guided templates and mindful affirmations.' },
+  { icon: '△',  title: 'Thought Release',       desc: 'Let go of what weighs on you by writing it down and watching it safely burn away.' },
   { icon: '☁',  title: 'Sync Anywhere',         desc: 'Your entries are private, secure, and available across all your devices.' },
   { icon: '☾',  title: 'Night Mode',            desc: 'Gentle on the eyes, perfect for those late-night reflections.' },
-  { icon: '🎙', title: 'Voice Journaling',      desc: 'Speak your mind and let your words transcribe themselves beautifully.' },
-  { icon: '◌',  title: 'Listen Back',           desc: 'Hear your past thoughts read back to you in a calming voice tone.' },
   { icon: '◎',  title: 'Reflections Timeline',  desc: 'Revisit your journey through an elegant timeline of your memories.' },
-  { icon: '⊕',  title: 'End-to-End Encryption', desc: 'Secure privacy is our priority. Your thoughts are encrypted so only you can read them.' },
   { icon: '✦',  title: 'Offline-First PWA',     desc: 'Install Thoughts on your home screen. Write anytime, anywhere—even without internet.' },
 ];
 

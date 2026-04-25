@@ -21,11 +21,22 @@ const Navigation = ({ onAddEntry, isDesktop }) => {
   // Safe helper to check active paths
   const isActive = (path) => location.pathname === path;
 
-  const ActionMenu = ({ position = 'bottom' }) => (
+  const ActionMenu = ({ position = 'bottom', isMobile = false }) => (
     <div
       ref={menuRef}
       className="action-menu-content animate-slide-up"
-      style={{
+      style={isMobile ? {
+        backgroundColor: 'var(--bg-primary)',
+        borderRadius: '24px',
+        padding: '12px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px',
+        minWidth: '250px',
+        boxShadow: '0 10px 40px rgba(0,0,0,0.1)',
+        border: '1px solid var(--border-color)',
+        zIndex: 1100
+      } : {
         position: 'absolute',
         [position]: position === 'bottom' ? '90px' : 'auto',
         top: position === 'top' ? '60px' : 'auto',
@@ -120,11 +131,15 @@ const Navigation = ({ onAddEntry, isDesktop }) => {
           left: 0,
           width: '100%',
           height: '100%',
-          backgroundColor: 'rgba(0,0,0,0.1)',
+          backgroundColor: 'rgba(0,0,0,0.2)',
           backdropFilter: 'blur(4px)',
-          zIndex: 999
+          zIndex: 999,
+          display: 'flex',
+          justifyContent: 'center',
+          alignItems: 'flex-end',
+          paddingBottom: '100px'
         }} onClick={() => setShowActionMenu(false)}>
-          <ActionMenu position="bottom" />
+          <ActionMenu position="bottom" isMobile={true} />
         </div>
       )}
 
