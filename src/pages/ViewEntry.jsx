@@ -6,8 +6,10 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { useSettings } from '../contexts/SettingsContext';
 import GuestWarning from '../components/GuestWarning';
 import { authService } from '../services/authService';
-import RichTextEditor from '../components/RichTextEditor';
+import RichTextEditor, { EditorTools } from '../components/RichTextEditor';
 import MoodSelector, { MOODS } from '../components/MoodSelector';
+import DesignSelector from '../components/DesignSelector';
+import TemplateSelector from '../components/TemplateSelector';
 
 function ViewEntry() {
   const { id } = useParams();
@@ -27,10 +29,16 @@ function ViewEntry() {
   const [isEditing, setIsEditing] = useState(false);
   const [editContent, setEditContent] = useState('');
   const [editMood, setEditMood] = useState(null);
+  const [editDesign, setEditDesign] = useState('minimal');
   const [saving, setSaving] = useState(false);
+  const [showDesigns, setShowDesigns] = useState(false);
   const navigate = useNavigate();
   const { voiceTone } = useSettings();
   const speakingRef = useRef(false);
+  const editorRef = useRef(null);
+  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showTemplates, setShowTemplates] = useState(false);
+  const moreMenuRef = useRef(null);
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
@@ -44,6 +52,7 @@ function ViewEntry() {
             setEntry(data);
             setEditContent(data.content);
             setEditMood(data.mood || null);
+            setEditDesign(data.design || 'minimal');
           } else {
             navigate('/journal');
           }
@@ -64,7 +73,36 @@ function ViewEntry() {
     };
   }, [id, navigate]);
 
-  const speakSegment = (segments, index) => {
+  const [segments, setSegments] = useState([]);
+
+  useEffect(() => {
+    if (entry && !isEditing) {
+      const stripHtml = (html) => {
+        let processed = html.replace(/<br\s*\/?>/gi, '\n');
+        processed = processed.replace(/<\/p>/gi, '\n\n');
+        processed = processed.replace(/<\/div>/gi, '\n');
+        processed = processed.replace(/<\/h[1-6]>/gi, '\n\n');
+        processed = processed.replace(/<\/li>/gi, '\n');
+        const tmp = document.createElement("DIV");
+        tmp.innerHTML = processed;
+        return tmp.textContent || tmp.innerText || "";
+      };
+
+      const plainText = stripHtml(entry.content);
+      const chunks = [];
+      plainText.split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        const sentenceLike = trimmed.replace(/([.!?])\s+/g, "$1~").split("~");
+        sentenceLike.forEach(s => {
+            if (s.trim().length > 0) chunks.push(s.trim());
+        });
+      });
+      setSegments(chunks);
+    }
+  }, [entry, isEditing]);
+
+  const speakSegment = (index) => {
     if (!speakingRef.current || index >= segments.length) {
       setIsSpeaking(false);
       setSpeakingIndex(-1);
@@ -74,7 +112,7 @@ function ViewEntry() {
 
     setSpeakingIndex(index);
     const utterance = new SpeechSynthesisUtterance(segments[index]);
-    window.__currentUtterance = utterance; // Prevent garbage collection bug
+    window.__currentUtterance = utterance; 
     
     const voices = window.speechSynthesis.getVoices();
     let selectedVoice = null;
@@ -96,7 +134,7 @@ function ViewEntry() {
     if (selectedVoice) utterance.voice = selectedVoice;
 
     utterance.onend = () => {
-      if (speakingRef.current) speakSegment(segments, index + 1);
+      if (speakingRef.current) speakSegment(index + 1);
     };
     
     utterance.onerror = (e) => {
@@ -111,7 +149,7 @@ function ViewEntry() {
   };
 
   const handleSpeak = () => {
-    if (!entry) return;
+    if (!entry || segments.length === 0) return;
 
     if (isSpeaking) {
       speakingRef.current = false;
@@ -121,37 +159,10 @@ function ViewEntry() {
       return;
     }
 
-    window.speechSynthesis.cancel(); // Clear any stuck speech queue
-
-    const stripHtml = (html) => {
-      let processed = html.replace(/<br\s*\/?>/gi, '\n');
-      processed = processed.replace(/<\/p>/gi, '\n\n');
-      processed = processed.replace(/<\/div>/gi, '\n');
-      processed = processed.replace(/<\/h[1-6]>/gi, '\n\n');
-      processed = processed.replace(/<\/li>/gi, '\n');
-      const tmp = document.createElement("DIV");
-      tmp.innerHTML = processed;
-      return tmp.textContent || tmp.innerText || "";
-    };
-
-    const plainText = stripHtml(entry.content);
-    
-    const chunks = [];
-    plainText.split('\n').forEach(line => {
-      const trimmed = line.trim();
-      if (!trimmed) return;
-      // Split long lines by punctuation to keep chunks manageable for text-to-speech
-      const sentenceLike = trimmed.replace(/([.!?])\s+/g, "$1~").split("~");
-      sentenceLike.forEach(s => {
-          if (s.trim().length > 0) chunks.push(s.trim());
-      });
-    });
-
-    if (chunks.length === 0) return;
-
+    window.speechSynthesis.cancel(); 
     setIsSpeaking(true);
     speakingRef.current = true;
-    speakSegment(chunks, 0);
+    speakSegment(0);
   };
 
   const handleEdit = () => {
@@ -167,6 +178,7 @@ function ViewEntry() {
   const handleCancelEdit = () => {
     setEditContent(entry.content);
     setEditMood(entry.mood || null);
+    setEditDesign(entry.design || 'minimal');
     setIsEditing(false);
   };
 
@@ -176,8 +188,8 @@ function ViewEntry() {
 
     setSaving(true);
     try {
-      await journalService.updateEntry(id, editContent, editMood);
-      setEntry({ ...entry, content: editContent, mood: editMood });
+      await journalService.updateEntry(id, editContent, editMood, editDesign);
+      setEntry({ ...entry, content: editContent, mood: editMood, design: editDesign });
       setIsEditing(false);
     } catch (error) {
       console.error("Error saving edit:", error);
@@ -198,6 +210,21 @@ function ViewEntry() {
     }
   };
 
+  const handleApplyTemplate = (templateContent) => {
+    setEditContent(templateContent);
+    setShowTemplates(false);
+  };
+
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(event.target)) {
+        setShowMoreMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
   if (loading) {
     return (
       <div className="vh-100 d-flex flex-column align-items-center justify-content-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
@@ -209,127 +236,322 @@ function ViewEntry() {
 
   if (!entry) return null;
 
+  const currentMoodData = MOODS.find(m => m.id === entry.mood);
+
   return (
     <>
       {user && user.isAnonymous && <GuestWarning />}
       <div className="journal-page min-vh-100 d-flex flex-column animate-fade-in" style={{ backgroundColor: 'var(--bg-primary)' }}>
       
         {/* Header */}
-        <header className="container py-4 border-bottom d-flex justify-content-between align-items-center">
-          <button onClick={() => navigate('/journal')} className="btn btn-link text-secondary text-decoration-none p-0 d-flex align-items-center gap-2">
-            <span style={{ fontSize: '1.2rem' }}>←</span> 
-            <span className="d-none d-md-inline" style={{ fontWeight: 500 }}>Return</span>
+        <header className="container py-3 d-flex justify-content-between align-items-center" style={{ borderBottom: '1px solid var(--border-color)' }}>
+          <button onClick={() => navigate('/journal')} className="btn btn-link text-secondary text-decoration-none p-0 d-flex align-items-center gap-2" style={{ fontSize: '0.85rem' }}>
+            <span>←</span> 
+            <span style={{ fontWeight: 500 }}>Return</span>
           </button>
           
-          {!isEditing && (
-            <div className="d-flex align-items-center gap-2">
-               <button onClick={handleSpeak} className={`btn-header-pill ${isSpeaking ? 'active' : ''}`}>
-                  <span>{isSpeaking ? '⏹' : '◌'}</span>
+          <div className="d-flex align-items-center gap-2">
+            {!isEditing && (
+              <>
+                <button onClick={handleSpeak} className={`view-action-pill ${isSpeaking ? 'active' : ''}`} title="Listen">
+                  <span className="view-action-icon">{isSpeaking ? '⏹' : '◌'}</span>
                   <span>{isSpeaking ? 'Stop' : 'Listen'}</span>
-               </button>
-               <button onClick={handleEdit} className="btn-header-pill">
-                  <span>✎</span>
+                </button>
+                <button onClick={handleEdit} className="view-action-pill" title="Edit">
+                  <span className="view-action-icon">✎</span>
                   <span>Edit</span>
-               </button>
-            </div>
-          )}
-
-          <div className="d-flex align-items-center gap-3 text-secondary">
-             <time className="small fw-500 d-none d-md-block" style={{ letterSpacing: '0.5px' }}>{entry.dateString}</time>
+                </button>
+                <button onClick={handleDelete} className="view-action-pill view-action-delete" title="Delete">
+                  <span className="view-action-icon">✕</span>
+                </button>
+              </>
+            )}
+            <time className="small text-secondary ms-3 d-none d-md-block" style={{ fontWeight: 500 }}>{entry.dateString}</time>
           </div>
-          <div className="d-md-none" style={{ width: '20px' }}></div>
         </header>
 
-        <main className="container flex-grow-1 py-5" style={{ maxWidth: '750px' }}>
+        <main className="container flex-grow-1 py-5" style={{ maxWidth: '800px' }}>
           {isEditing ? (
             <div className="animate-fade-in">
-              <div className="d-flex justify-content-between align-items-center mb-4 pb-3 border-bottom">
-                <div className="d-flex align-items-center gap-2" style={{ opacity: 0.5 }}>
-                  <span className="small text-uppercase" style={{ letterSpacing: '1.5px', fontSize: '0.75rem' }}>Editing Thought</span>
+              {/* Toolbar matching Journal.jsx */}
+              <div className="d-flex justify-content-between align-items-center mb-4 w-100">
+                <div className="d-flex gap-2 align-items-center" style={{ opacity: 0.4 }}>
+                  <span className="small text-uppercase" style={{ letterSpacing: '1.5px', fontSize: '0.7rem', fontWeight: 600 }}>Editing Reflection</span>
                 </div>
-                <div className="d-flex gap-3 align-items-center">
-                  <button 
+
+                <div className="d-flex gap-1 align-items-center">
+                  <button
                     onClick={handleCancelEdit}
-                    className="btn btn-link text-secondary text-decoration-none p-0 d-flex align-items-center gap-1"
-                    style={{ fontWeight: 400, fontSize: '0.9rem' }}
+                    className="btn-editor-tool"
+                    title="Cancel"
                   >
-                    Cancel
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
                   </button>
-                  <button 
+
+                  <div style={{ width: '1px', height: '16px', background: 'var(--border-color)', margin: '0 2px' }}></div>
+
+                  <EditorTools editor={editorRef.current} />
+
+                  <div className="position-relative" ref={moreMenuRef}>
+                    <button
+                      onClick={() => setShowMoreMenu(!showMoreMenu)}
+                      className="btn-editor-tool"
+                      title="More options"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
+                    </button>
+
+                    {showMoreMenu && (
+                      <>
+                        <div className="editor-more-backdrop" onClick={() => setShowMoreMenu(false)}></div>
+                        <div className="editor-more-dropdown animate-fade-in">
+                          <button
+                            onClick={() => { setShowDesigns(true); setShowMoreMenu(false); }}
+                            className="editor-more-item"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg>
+                            <span>Design</span>
+                          </button>
+                          <button
+                            onClick={() => { setShowTemplates(true); setShowMoreMenu(false); }}
+                            className="editor-more-item"
+                          >
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
+                            <span>Templates</span>
+                          </button>
+                        </div>
+                      </>
+                    )}
+                  </div>
+
+                  <div style={{ width: '1px', height: '16px', background: 'var(--border-color)', margin: '0 2px' }}></div>
+
+                  <button
                     onClick={handleSaveEdit}
-                    className="btn btn-dark px-4 py-1 small d-flex justify-content-center align-items-center"
-                    disabled={saving}
-                    style={{ borderRadius: '100px', fontWeight: 500, minWidth: '80px' }}
+                    className="btn-editor-tool btn-editor-save"
+                    disabled={saving || !editContent || editContent === '<p></p>'}
+                    title="Save"
                   >
-                    {saving ? <span className="loading-dots text-white" style={{ height: '18px' }}><span></span><span></span><span></span></span> : 'Save'}
+                    {saving 
+                      ? <span className="loading-dots" style={{ height: '16px' }}><span></span><span></span><span></span></span> 
+                      : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
+                    }
                   </button>
                 </div>
               </div>
 
-              <MoodSelector selectedMood={editMood} onSelect={setEditMood} />
+              {/* Mood Selection (Top) matching Journal.jsx */}
+              <div className="mb-3 animate-fade-in">
+                <div className="d-flex justify-content-between align-items-baseline mb-2">
+                  <p className="small text-secondary m-0 fw-500" style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Current Mood</p>
+                  {editMood && (
+                    <button 
+                      onClick={() => setEditMood(null)} 
+                      className="btn btn-link text-secondary text-decoration-none p-0"
+                      style={{ fontSize: '0.7rem', fontWeight: 400 }}
+                    >
+                      Clear
+                    </button>
+                  )}
+                </div>
+                <MoodSelector selectedMood={editMood} onSelect={setEditMood} compact={true} />
+                <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', marginTop: '16px', opacity: 0.5 }}></div>
+              </div>
+
+              {showTemplates && (
+                <TemplateSelector 
+                  onSelect={handleApplyTemplate} 
+                  onClose={() => setShowTemplates(false)} 
+                />
+              )}
+
+              {showDesigns && (
+                <DesignSelector 
+                  selectedDesign={editDesign}
+                  onSelect={setEditDesign} 
+                  onClose={() => setShowDesigns(false)} 
+                />
+              )}
 
               <RichTextEditor 
                 content={editContent} 
                 onChange={setEditContent}
+                editorRef={editorRef}
+                design={editDesign}
                 placeholder="Edit your reflection..."
               />
             </div>
           ) : (
-            <div className={`${isSpeaking ? 'reading-mode-active' : ''}`}>
-              <article className="entry-content mb-5 px-0">
-                <div 
-                  className={`rich-content-view ${isOnlyEmojis(entry.content) ? 'emoji-only-entry' : ''}`}
-                  dangerouslySetInnerHTML={{ __html: entry.content }}
-                  style={{ 
-                    fontSize: '1.2rem', 
-                    lineHeight: '1.8', 
-                    color: 'var(--text-primary)' 
-                  }}
-                />
-
-                {entry.mood && (
-                  <div className="entry-mood-display animate-fade-in mt-4 pt-3 d-flex align-items-center gap-3">
-                    <div 
-                      className="mood-aura-dot" 
-                      style={{ backgroundColor: MOODS.find(m => m.id === entry.mood)?.color }}
-                    >
-                      {MOODS.find(m => m.id === entry.mood)?.icon}
-                    </div>
-                    <div className="mood-text">
-                       <span className="small text-secondary text-uppercase" style={{ letterSpacing: '1px', fontSize: '0.7rem' }}>Current Mood</span>
-                       <p className="m-0 fw-bold">{MOODS.find(m => m.id === entry.mood)?.label}</p>
-                    </div>
+            <div className="view-content-wrapper">
+              <article className={`entry-display entry-design-${entry.design || 'minimal'}`}>
+                {isSpeaking ? (
+                  <div className="speaking-container">
+                    {segments.map((text, i) => (
+                      <span 
+                        key={i} 
+                        className={`speaking-segment ${speakingIndex === i ? 'highlighted' : ''}`}
+                      >
+                        {text}{' '}
+                      </span>
+                    ))}
                   </div>
+                ) : (
+                  <div 
+                    className={`rich-content-view ${isOnlyEmojis(entry.content) ? 'emoji-only-entry' : ''}`}
+                    dangerouslySetInnerHTML={{ __html: entry.content }}
+                  />
                 )}
-                
-                <div className="mt-5 pt-5 text-center" style={{ opacity: 0.4 }}>
-                    <div className="x-small text-secondary text-uppercase mb-2" style={{ letterSpacing: '2px' }}>Thought Captured</div>
-                    <div className="fw-bold text-dark">{entry.dateString}</div>
-                </div>
               </article>
 
-              <div className="d-flex justify-content-center pt-5">
-                <button 
-                  onClick={handleDelete}
-                  className="btn btn-link text-secondary text-decoration-none small d-flex align-items-center gap-2"
-                  style={{ opacity: 0.4, transition: 'all 0.3s ease' }}
-                  onMouseEnter={(e) => e.currentTarget.style.opacity = 1}
-                  onMouseLeave={(e) => e.currentTarget.style.opacity = 0.4}
-                >
-                  <span>✕</span>
-                  Release this thought forever
-                </button>
-              </div>
+              {entry.mood && currentMoodData && (
+                <div className="mood-display-card mt-5 animate-fade-in">
+                  <div className="mood-display-icon" style={{ backgroundColor: currentMoodData.color }}>
+                    {currentMoodData.icon}
+                  </div>
+                  <div className="mood-display-info">
+                    <span className="mood-display-label">Current Mood</span>
+                    <span className="mood-display-value">{currentMoodData.label}</span>
+                  </div>
+                </div>
+              )}
             </div>
           )}
         </main>
 
-        <footer className="container py-5 text-center text-secondary small border-top mt-auto" style={{ opacity: 0.4 }}>
-           Your private space for reflection.
-        </footer>
+        <style jsx="true">{`
+          .view-action-pill {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            padding: 6px 16px;
+            border-radius: 100px;
+            background: rgba(0, 0, 0, 0.03);
+            border: 1px solid transparent;
+            color: var(--text-secondary);
+            font-size: 0.85rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            cursor: pointer;
+          }
+          .view-action-pill:hover {
+            background: rgba(0, 0, 0, 0.06);
+            color: var(--text-primary);
+          }
+          .view-action-delete:hover {
+            background: rgba(220, 53, 69, 0.1) !important;
+            color: #dc3545 !important;
+            border-color: rgba(220, 53, 69, 0.2);
+          }
+          .view-action-pill.active {
+            background: var(--text-primary);
+            color: var(--bg-primary);
+          }
+          .view-action-icon {
+            font-size: 0.9rem;
+          }
+
+          .speaking-segment {
+            transition: all 0.3s ease;
+            display: inline;
+            color: var(--text-primary);
+            opacity: 0.4;
+          }
+          .speaking-segment.highlighted {
+            background: color-mix(in srgb, var(--text-primary) 8%, transparent);
+            color: var(--text-primary);
+            opacity: 1;
+            border-radius: 4px;
+            padding: 0 4px;
+            box-shadow: 0 0 10px rgba(0,0,0,0.05);
+          }
+
+          .mood-display-card {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 20px;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-color);
+            border-radius: 20px;
+            width: fit-content;
+          }
+          .mood-display-icon {
+            width: 44px;
+            height: 44px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+          }
+          .mood-display-icon svg {
+            width: 20px;
+            height: 20px;
+            stroke: currentColor;
+          }
+          .mood-display-info {
+            display: flex;
+            flex-direction: column;
+          }
+          .mood-display-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            color: var(--text-secondary);
+            font-weight: 600;
+          }
+          .mood-display-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+            color: var(--text-primary);
+          }
+
+          .entry-footer-info .info-label {
+            font-size: 0.65rem;
+            text-transform: uppercase;
+            letter-spacing: 2px;
+            color: var(--text-secondary);
+            margin-bottom: 6px;
+          }
+          .entry-footer-info .info-date {
+            font-weight: 700;
+            color: var(--text-primary);
+            font-size: 0.95rem;
+          }
+
+          .btn-delete-thought {
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            font-size: 0.8rem;
+            opacity: 0.4;
+            transition: all 0.3s ease;
+            cursor: pointer;
+            padding: 10px 20px;
+          }
+          .btn-delete-thought:hover {
+            opacity: 1;
+            color: #dc3545;
+          }
+
+          [data-theme="dark"] .view-action-pill {
+            background: rgba(255, 255, 255, 0.05);
+          }
+          [data-theme="dark"] .view-action-pill:hover {
+            background: rgba(255, 255, 255, 0.1);
+          }
+          [data-theme="dark"] .speaking-segment {
+            opacity: 0.3;
+          }
+          [data-theme="dark"] .speaking-segment.highlighted {
+            background: rgba(255, 255, 255, 0.1);
+          }
+        `}</style>
       </div>
     </>
   );
 }
 
 export default ViewEntry;
+

@@ -18,7 +18,6 @@ function Settings() {
   const [installPrompt, setInstallPrompt] = useState(null);
   const {
     isDarkMode, setIsDarkMode,
-    isCompact, setIsCompact,
     voiceTone, setVoiceTone,
     fontFamily, setFontFamily
   } = useSettings();
@@ -120,12 +119,17 @@ function Settings() {
       {user && user.isAnonymous && <GuestWarning />}
       <div className="journal-page min-vh-100 d-flex flex-column animate-fade-in" style={{ backgroundColor: 'var(--bg-primary)' }}>
         <header className="container py-4 border-bottom d-flex justify-content-between align-items-center">
-          <button onClick={() => navigate('/journal')} className="btn btn-link text-secondary text-decoration-none p-0 d-flex align-items-center gap-2">
-            <span style={{ fontSize: '1.2rem' }}>←</span>
-            <span style={{ fontWeight: 500 }}>Return</span>
+          <button onClick={() => navigate('/journal')} className="btn btn-link text-dark text-decoration-none p-0 d-flex align-items-center justify-content-center hover-lift" style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)' }}>
+            <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>←</span>
           </button>
-          <div className="fw-bold text-dark" style={{ fontSize: '1.2rem', letterSpacing: '-1px' }}>Settings</div>
-          <div style={{ width: '80px' }}></div>
+          <div className="fw-bold text-dark text-uppercase" style={{ fontSize: '0.85rem', letterSpacing: '2px' }}>Settings</div>
+          <button onClick={handleLogout} className="btn btn-link text-dark text-decoration-none p-0 d-flex align-items-center justify-content-center hover-lift" style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)' }} title="Sign Out">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+          </button>
         </header>
 
         <main className="container flex-grow-1 py-5" style={{ maxWidth: '650px' }}>
@@ -195,21 +199,6 @@ function Settings() {
               </div>
               <div className="d-flex justify-content-between align-items-center p-4 border-bottom">
                 <div>
-                  <h5 className="m-0 h6 text-dark">Compact View</h5>
-                  <p className="m-0 text-secondary x-small mt-1">Show more thoughts on one screen.</p>
-                </div>
-                <div className="form-check form-switch m-0">
-                  <input
-                    className="form-check-input"
-                    type="checkbox"
-                    role="switch"
-                    checked={isCompact}
-                    onChange={() => setIsCompact(!isCompact)}
-                  />
-                </div>
-              </div>
-              <div className="d-flex justify-content-between align-items-center p-4 border-bottom">
-                <div>
                   <h5 className="m-0 h6 text-dark">Voice Tone</h5>
                   <p className="m-0 text-secondary x-small mt-1">Select the voice for speech reflections.</p>
                 </div>
@@ -263,82 +252,16 @@ function Settings() {
             </div>
           </section>
 
-          {/* Notifications Section */}
+          {/* Help & Legal Section */}
           <section className="settings-section mb-5">
-            <h3 className="h6 text-secondary text-uppercase mb-3" style={{ fontSize: '0.75rem', letterSpacing: '1px' }}>Notifications</h3>
+            <h3 className="h6 text-secondary text-uppercase mb-3" style={{ fontSize: '0.75rem', letterSpacing: '1px' }}>Support</h3>
             <div className="bg-white rounded-4 border shadow-sm">
-              <div className="d-flex justify-content-between align-items-center p-4">
+              <Link to="/journal/help" className="d-flex justify-content-between align-items-center p-4 text-decoration-none transition-all hover-bg-light" style={{ color: 'var(--text-primary)' }}>
                 <div>
-                  <h5 className="m-0 h6 text-dark inline-flex align-items-center gap-2">
-                    Mindful Reminders
-                    <span className="badge bg-secondary-subtle text-secondary border fw-normal x-small ms-2" style={{ padding: '3px 8px', borderRadius: '4px' }}>Coming Soon</span>
-                  </h5>
-                  <p className="m-0 text-secondary x-small mt-1">Receive gentle daily reminders to reflect.</p>
+                  <h5 className="m-0 h6 text-dark fw-600">Help & Legal</h5>
+                  <p className="m-0 text-secondary x-small mt-1 text-uppercase fw-600 opacity-75" style={{ letterSpacing: '0.5px' }}>Support, Privacy, and Terms</p>
                 </div>
-                <div className="text-secondary opacity-50" style={{ fontSize: '1.2rem' }}>◌</div>
-              </div>
-            </div>
-          </section>
-
-          {/* App Support Section */}
-          <section className="settings-section mb-5">
-            <h3 className="h6 text-secondary text-uppercase mb-3" style={{ fontSize: '0.75rem', letterSpacing: '1px' }}>App Experience</h3>
-            <div className="bg-white rounded-4 border shadow-sm">
-
-              <div className="d-flex justify-content-between align-items-center p-4 border-bottom">
-                <div>
-                  <h5 className="m-0 h6 text-dark font-primary">Mobile Experience</h5>
-                  <p className="m-0 text-secondary x-small mt-1">Get a standalone app on your home screen.</p>
-                </div>
-                <button
-                  onClick={handleInstallApp}
-                  className={`btn btn-sm ${installPrompt ? 'btn-dark' : 'btn-outline-secondary disabled'}`}
-                  disabled={!installPrompt}
-                >
-                  {installPrompt ? 'Install App' : 'Installed'}
-                </button>
-              </div>
-              <div className="d-flex justify-content-between align-items-center p-4">
-                <div>
-                  <h5 className="m-0 h6 text-dark">Developer Check</h5>
-                  <p className="m-0 text-secondary x-small mt-1">Current version and system status.</p>
-                </div>
-                <span className="badge bg-light text-dark fw-normal border">v1.0.0 Stable</span>
-              </div>
-            </div>
-          </section>
-
-          {/* Legal Section */}
-          <section className="settings-section mb-5">
-            <h3 className="h6 text-secondary text-uppercase mb-3" style={{ fontSize: '0.75rem', letterSpacing: '1px' }}>Support & Legal</h3>
-            <div className="bg-white rounded-4 border shadow-sm">
-              <Link to="/journal/support" className="d-flex justify-content-between align-items-center p-4 border-bottom text-decoration-none" style={{ color: 'var(--text-primary)' }}>
-                <div>
-                  <h5 className="m-0 h6 text-dark">Help & Support</h5>
-                  <p className="m-0 text-secondary x-small mt-1">Frequently asked questions and resources.</p>
-                </div>
-                <span className="text-secondary">→</span>
-              </Link>
-              <Link to="/privacy" className="d-flex justify-content-between align-items-center p-4 border-bottom text-decoration-none" style={{ color: 'var(--text-primary)' }}>
-                <div>
-                  <h5 className="m-0 h6 text-dark">Privacy Policy</h5>
-                  <p className="m-0 text-secondary x-small mt-1">How we handle your data.</p>
-                </div>
-                <span className="text-secondary">→</span>
-              </Link>
-              <Link to="/terms" className="d-flex justify-content-between align-items-center p-4 border-bottom text-decoration-none" style={{ color: 'var(--text-primary)' }}>
-                <div>
-                  <h5 className="m-0 h6 text-dark">Terms of Service</h5>
-                  <p className="m-0 text-secondary x-small mt-1">Rules of using Thoughts.</p>
-                </div>
-                <span className="text-secondary">→</span>
-              </Link>
-              <Link to="/popi" className="d-flex justify-content-between align-items-center p-4 text-decoration-none" style={{ color: 'var(--text-primary)' }}>
-                <div>
-                  <h5 className="m-0 h6 text-dark">POPI Act Compliance</h5>
-                  <p className="m-0 text-secondary x-small mt-1">South African data protection.</p>
-                </div>
-                <span className="text-secondary">→</span>
+                <span className="text-secondary opacity-50">→</span>
               </Link>
             </div>
           </section>
@@ -374,12 +297,6 @@ function Settings() {
             </div>
           </section>
 
-          {/* Logout */}
-          <div className="text-center mt-5 pt-4">
-            <button onClick={handleLogout} className="btn-minimal-outline border-0 text-secondary d-inline-flex align-items-center gap-2">
-              Sign out of <span className="thoughts-brand thoughts-brand--xs">Thoughts.</span>
-            </button>
-          </div>
         </main>
 
         <footer className="container py-4 text-center border-top mt-auto" style={{ opacity: 0.6 }}>

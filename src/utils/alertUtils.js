@@ -1,6 +1,7 @@
 import Swal from 'sweetalert2';
 import { authService } from '../services/authService';
 import { journalService } from '../services/journalService';
+import confetti from 'canvas-confetti';
 
 /**
  * Custom Styled SweetAlert2 for Thoughts App
@@ -123,4 +124,55 @@ export const confirmDeleteAccount = async (userId, navigate) => {
       }
     }
   }
+};
+
+/**
+ * showReleaseSuccess — celebrate letting go
+ */
+export const showReleaseSuccess = async () => {
+  // Trigger confetti
+  const duration = 3 * 1000;
+  const animationEnd = Date.now() + duration;
+  const defaults = { startVelocity: 30, spread: 360, ticks: 60, zIndex: 3000 };
+
+  const randomInRange = (min, max) => Math.random() * (max - min) + min;
+
+  const interval = setInterval(function() {
+    const timeLeft = animationEnd - Date.now();
+
+    if (timeLeft <= 0) {
+      return clearInterval(interval);
+    }
+
+    const particleCount = 50 * (timeLeft / duration);
+    
+    // Left side burst
+    confetti({ 
+      ...defaults, 
+      particleCount, 
+      origin: { x: 0, y: 0.7 },
+      angle: 60,
+      spread: 55,
+      colors: ['#2C2C2C', '#7A7A7A', '#F4E1A1', '#AED9E0']
+    });
+    
+    // Right side burst
+    confetti({ 
+      ...defaults, 
+      particleCount, 
+      origin: { x: 1, y: 0.7 },
+      angle: 120,
+      spread: 55,
+      colors: ['#2C2C2C', '#7A7A7A', '#F4E1A1', '#AED9E0']
+    });
+  }, 250);
+
+  return ThoughtsSwal.fire({
+    title: 'Released',
+    text: "Your thoughts have been released to the universe. Feel the lightness of letting go.",
+    icon: 'success',
+    confirmButtonText: 'Breathe In',
+    timer: 5000,
+    timerProgressBar: true
+  });
 };

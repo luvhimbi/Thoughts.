@@ -18,12 +18,13 @@ export const journalService = {
    * @param {string} content - The thought content
    * @param {Object} options - Metadata like isEncrypted
    */
-  async saveEntry(userId, content, mood = null) {
+  async saveEntry(userId, content, mood = null, design = 'minimal') {
     try {
       const docRef = await addDoc(collection(db, "entries"), {
         userId,
         content,
         mood,
+        design,
         createdAt: serverTimestamp(),
         dateString: new Date().toLocaleDateString('en-US', { 
           month: 'long', 
@@ -113,7 +114,7 @@ export const journalService = {
    * @param {string} content - The updated content
    * @param {boolean} isEncrypted - Whether the update should be encrypted
    */
-  async updateEntry(entryId, content, mood = null) {
+  async updateEntry(entryId, content, mood = null, design = null) {
     try {
       const { updateDoc } = await import("firebase/firestore");
       const docRef = doc(db, "entries", entryId);
@@ -123,6 +124,9 @@ export const journalService = {
       };
       if (mood !== undefined) {
         updateData.mood = mood;
+      }
+      if (design) {
+        updateData.design = design;
       }
       await updateDoc(docRef, updateData);
     } catch (error) {

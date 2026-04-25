@@ -204,7 +204,8 @@ export const authService = {
       if (!userSnap.exists()) {
         const userData = {
           uid: userId,
-          createdAt: new Date().toISOString()
+          createdAt: new Date().toISOString(),
+          currentStreak: 0
         };
         await setDoc(userRef, userData);
       }
@@ -212,6 +213,18 @@ export const authService = {
     } catch (error) {
       console.error("Error ensuring user document:", error);
       throw error;
+    }
+  },
+
+  /**
+   * Updates the user's streak in the database
+   */
+  async updateUserStreak(userId, streak) {
+    try {
+      const userRef = doc(db, "users", userId);
+      await setDoc(userRef, { currentStreak: streak, lastStreakUpdate: new Date().toISOString() }, { merge: true });
+    } catch (error) {
+      console.error("Error updating streak in DB:", error);
     }
   }
 };

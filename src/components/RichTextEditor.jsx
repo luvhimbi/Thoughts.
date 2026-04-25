@@ -4,7 +4,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 
-const MenuBar = ({ editor }) => {
+const EditorTools = ({ editor }) => {
   const [showEmoji, setShowEmoji] = useState(false);
   const emojiRef = useRef(null);
 
@@ -18,37 +18,19 @@ const MenuBar = ({ editor }) => {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
-  if (!editor) {
-    return null;
-  }
+  if (!editor) return null;
 
-  const buttons = [
-    {
-      icon: (
-        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M6 4h8a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path>
-          <path d="M6 12h9a4 4 0 0 1 4 4 4 4 0 0 1-4 4H6z"></path>
-        </svg>
-      ),
-      action: () => editor.chain().focus().toggleBold().run(),
-      isActive: editor.isActive('bold'),
-      title: 'Bold'
-    },
-    {
-      icon: (
-        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="19" y1="4" x2="10" y2="4"></line>
-          <line x1="14" y1="20" x2="5" y2="20"></line>
-          <line x1="15" y1="4" x2="9" y2="20"></line>
-        </svg>
-      ),
-      action: () => editor.chain().focus().toggleItalic().run(),
-      isActive: editor.isActive('italic'),
-      title: 'Italic'
-    },
-    {
-      icon: (
-        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+  return (
+    <div className="editor-inline-tools d-flex gap-1 align-items-center">
+      <button
+        onClick={(e) => {
+          e.preventDefault();
+          editor.chain().focus().toggleBulletList().run();
+        }}
+        className={`btn-editor-tool ${editor.isActive('bulletList') ? 'active' : ''}`}
+        title="Bullet List"
+      >
+        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
           <line x1="8" y1="6" x2="21" y2="6"></line>
           <line x1="8" y1="12" x2="21" y2="12"></line>
           <line x1="8" y1="18" x2="21" y2="18"></line>
@@ -56,45 +38,9 @@ const MenuBar = ({ editor }) => {
           <line x1="3" y1="12" x2="3.01" y2="12"></line>
           <line x1="3" y1="18" x2="3.01" y2="18"></line>
         </svg>
-      ),
-      action: () => editor.chain().focus().toggleBulletList().run(),
-      isActive: editor.isActive('bulletList'),
-      title: 'Bullet List'
-    },
-    {
-      icon: (
-        <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="10" y1="6" x2="21" y2="6"></line>
-          <line x1="10" y1="12" x2="21" y2="12"></line>
-          <line x1="10" y1="18" x2="21" y2="18"></line>
-          <path d="M4 6h1v4"></path>
-          <path d="M4 10h2"></path>
-          <path d="M6 18H4c0-1 2-2 2-3s-1-1.5-2-1"></path>
-        </svg>
-      ),
-      action: () => editor.chain().focus().toggleOrderedList().run(),
-      isActive: editor.isActive('orderedList'),
-      title: 'Ordered List'
-    },
-  ];
+      </button>
 
-  return (
-    <div className="editor-menu-bar animate-fade-in d-flex gap-1 mb-4 position-relative">
-      {buttons.map((btn, i) => (
-        <button
-          key={i}
-          onClick={(e) => {
-            e.preventDefault();
-            btn.action();
-          }}
-          className={`btn-editor-tool ${btn.isActive ? 'active' : ''}`}
-          title={btn.title}
-        >
-          {btn.icon}
-        </button>
-      ))}
-
-      <div ref={emojiRef}>
+      <div ref={emojiRef} className="position-relative">
         <button
           onClick={(e) => {
             e.preventDefault();
@@ -103,7 +49,7 @@ const MenuBar = ({ editor }) => {
           className={`btn-editor-tool ${showEmoji ? 'active' : ''}`}
           title="Add Emoji"
         >
-          <svg viewBox="0 0 24 24" width="18" height="18" stroke="currentColor" strokeWidth="2.5" fill="none" strokeLinecap="round" strokeLinejoin="round">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10"></circle>
             <path d="M8 14s1.5 2 4 2 4-2 4-2"></path>
             <line x1="9" y1="9" x2="9.01" y2="9"></line>
@@ -132,7 +78,7 @@ const MenuBar = ({ editor }) => {
   );
 };
 
-const RichTextEditor = ({ content, onChange, editorRef, placeholder = 'Begin your reflection here...' }) => {
+const RichTextEditor = ({ content, onChange, editorRef, design = 'minimal', placeholder = 'Begin your reflection here...' }) => {
   const editor = useEditor({
     extensions: [
       StarterKit,
@@ -154,47 +100,31 @@ const RichTextEditor = ({ content, onChange, editorRef, placeholder = 'Begin you
 
   return (
     <div className="rich-text-editor-wrapper">
-      <MenuBar editor={editor} />
-      <EditorContent editor={editor} className="editor-content-area" />
+      <EditorContent editor={editor} className={`editor-content-area entry-design-${design}`} />
       
       <style jsx="true">{`
         .rich-text-editor-wrapper {
           width: 100%;
         }
-        .editor-menu-bar {
-          padding: 4px;
-          background: rgba(255, 255, 255, 0.6);
-          backdrop-filter: blur(20px);
-          -webkit-backdrop-filter: blur(20px);
-          border: 1px solid rgba(255, 255, 255, 0.4);
-          border-radius: 14px;
-          display: inline-flex !important;
-          z-index: 10;
-          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.03);
-          transition: all 0.3s ease;
-        }
-        [data-theme="dark"] .editor-menu-bar {
-          background: rgba(40, 40, 40, 0.6);
-          border-color: rgba(255, 255, 255, 0.1);
-          box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+        .editor-inline-tools {
+          position: relative;
         }
         .btn-editor-tool {
-          width: 38px;
-          height: 38px;
+          width: 32px;
+          height: 32px;
           display: flex;
           align-items: center;
           justify-content: center;
           border: none;
           background: transparent;
-          border-radius: 10px;
+          border-radius: 8px;
           color: var(--text-secondary);
-          transition: all 0.25s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+          transition: all 0.2s ease;
           cursor: pointer;
         }
         .btn-editor-tool:hover {
-          background: rgba(0, 0, 0, 0.04);
+          background: rgba(0, 0, 0, 0.05);
           color: var(--text-primary);
-          transform: translateY(-1px);
         }
         [data-theme="dark"] .btn-editor-tool:hover {
           background: rgba(255, 255, 255, 0.1);
@@ -202,18 +132,10 @@ const RichTextEditor = ({ content, onChange, editorRef, placeholder = 'Begin you
         .btn-editor-tool.active {
           background: var(--text-primary);
           color: var(--bg-primary);
-          box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-        }
-        .btn-editor-tool svg {
-          transition: transform 0.2s ease;
-        }
-        .btn-editor-tool.active svg {
-          transform: scale(0.9);
         }
         .editor-content-area {
           min-height: 300px;
         }
-        /* TipTap Specific Styling */
         .ProseMirror {
           min-height: 400px;
           outline: none !important;
@@ -243,4 +165,5 @@ const RichTextEditor = ({ content, onChange, editorRef, placeholder = 'Begin you
   );
 };
 
+export { EditorTools };
 export default RichTextEditor;
