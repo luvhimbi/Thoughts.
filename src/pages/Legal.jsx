@@ -65,15 +65,8 @@ function LegalPage({ title, children }) {
           </div>
         </aside>
 
-        {/* Mobile Header */}
-        <header className="mobile-header d-md-none d-flex justify-content-between align-items-center py-3 px-4 border-bottom shadow-sm sticky-top" style={{ zIndex: 100, backgroundColor: 'var(--element-bg)' }}>
-          <div className="d-flex align-items-center gap-3">
-            <div className={`sync-dot ${isOnline ? 'sync-online' : 'sync-offline'}`}></div>
-            <Link to="/" className="navbar-brand text-decoration-none">
-              <span className="thoughts-brand">Thoughts.</span>
-            </Link>
-          </div>
-        </header>
+        {/* No Mobile Top Header as per request */}
+
 
         {/* Main Content */}
         <main className="flex-grow-1 animate-fade-in overflow-auto w-100" style={{ backgroundColor: 'var(--bg-primary)' }}>
@@ -105,8 +98,11 @@ function LegalPage({ title, children }) {
 
   return (
     <div className="journal-page min-vh-100 d-flex flex-column animate-fade-in" style={{ backgroundColor: 'var(--bg-primary)' }}>
-      <PublicNavbar />
-      <div style={{ height: '72px' }} />
+      <div className="container py-4">
+        <Link to="/" className="text-decoration-none text-secondary small fw-500 d-flex align-items-center gap-2">
+          <span>&larr;</span> Back to Home
+        </Link>
+      </div>
 
       <main className="container flex-grow-1 py-5" style={{ maxWidth: '700px' }}>
         <h1 className="mb-2" style={{ fontSize: '2rem', letterSpacing: '-1px', color: 'var(--text-primary)' }}>{title}</h1>

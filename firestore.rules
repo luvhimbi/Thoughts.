@@ -1,0 +1,48 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // Helper to check if user is an admin
+    function isAdmin() {
+      return request.auth != null && 
+             exists(/databases/$(database)/documents/users/$(request.auth.uid)) &&
+             get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'admin';
+    }
+
+    // Only allow authenticated users to read and write their own entries
+    match /entries/{entryId} {
+      allow create: if request.auth != null && request.resource.data.userId == request.auth.uid;
+      allow read, update, delete: if request.auth != null && resource.data.userId == request.auth.uid;
+    }
+
+    // Rules for notification subscriptions
+    match /push_subscriptions/{userId} {
+      allow read, write: if request.auth != null && userId == request.auth.uid;
+    }
+
+    // Rules for user profiles
+    match /users/{userId} {
+      allow read: if request.auth != null && userId == request.auth.uid;
+      
+      // Allow creation if it's the user's own doc and they aren't setting a role
+      allow create: if request.auth != null && userId == request.auth.uid 
+                    && !('role' in request.resource.data);
+      
+      // Allow updates only if they don't modify the role field
+      allow update: if request.auth != null && userId == request.auth.uid 
+                    && (!request.resource.data.diff(resource.data).affectedKeys().hasAny(['role']));
+    }
+
+    // Rules for affirmations
+    match /affirmations/{id} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+
+    // Rules for prompts
+    match /prompts/{id} {
+      allow read: if request.auth != null;
+      allow write: if isAdmin();
+    }
+  }
+}

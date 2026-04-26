@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { affirmationService } from '../services/affirmationService';
+import { authService } from '../services/authService';
 import * as htmlToImage from 'html-to-image';
 import Navigation from '../components/Navigation';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
@@ -19,21 +20,29 @@ function Affirmations() {
   const isOnline = useOnlineStatus();
 
   useEffect(() => {
+    // Try cache first for instant feel
+    const cachedProfile = authService.getCachedProfile();
+    if (cachedProfile) {
+      setUser(cachedProfile);
+      setLoading(false);
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (!currentUser) {
         navigate('/login');
         return;
       }
+      
       setUser(currentUser);
+      setLoading(false);
 
       try {
+        await authService.ensureUserDocument(currentUser);
         await affirmationService.seedAffirmations();
         const daily = await affirmationService.getDailyAffirmation();
         setAffirmation(daily);
       } catch (err) {
         console.error("Failed to load affirmation:", err);
-      } finally {
-        setLoading(false);
       }
     });
     return unsubscribe;
@@ -90,13 +99,8 @@ function Affirmations() {
     window.open(`https://wa.me/?text=${text}`, '_blank');
   };
 
-  if (loading) {
-    return (
-      <div className="vh-100 d-flex flex-column align-items-center justify-content-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
-        <div className="custom-spinner mb-3"></div>
-      </div>
-    );
-  }
+  // Removed fullscreen loading to match Reflections.jsx speed
+
 
   if (!user) return null;
 
@@ -117,8 +121,12 @@ function Affirmations() {
         <div className="profile-section mt-auto pt-4 border-top">
           <div className="d-flex flex-column gap-3">
             <Link to="/journal/settings" className="sidebar-profile-card">
-              <div className="profile-avatar">
-                {user.displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+              <div className="profile-avatar overflow-hidden">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  user.displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'
+                )}
               </div>
               <div className="profile-info">
                 <p className="profile-name">{user.displayName}</p>
@@ -204,7 +212,7 @@ function Affirmations() {
           <p className="x-small text-uppercase" style={{ letterSpacing: '1px' }}>A moment of peace, once a day.</p>
         </footer>
 
-        <style jsx="true">{`
+        <style>{`
           .affirmation-accent {
             width: 40px;
             height: 4px;

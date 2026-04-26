@@ -678,7 +678,25 @@ footer {
   position: relative;
   transition: all 0.2s ease;
   border-bottom: 1px solid var(--border-color);
-  background: transparent;
+  background: var(--bg-primary);
+}
+
+.swipable-entry-container {
+  background: var(--bg-secondary);
+  border-bottom: 1px solid var(--border-color);
+}
+
+.swipe-actions {
+  background-color: var(--bg-secondary) !important;
+  border-left: 1px solid var(--border-color);
+}
+
+.list-entry {
+  background: var(--bg-primary) !important;
+}
+
+[data-theme="dark"] .list-entry {
+  background: var(--bg-primary) !important;
 }
 
 .list-entry:hover {

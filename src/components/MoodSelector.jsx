@@ -77,9 +77,9 @@ const MOODS = [
   }
 ];
 
-const MoodSelector = ({ selectedMood, onSelect, compact = false }) => {
+const MoodSelector = ({ selectedMood, onSelect, compact = false, iconsOnly = false }) => {
   return (
-    <div className={`mood-selector-container ${compact ? 'compact' : ''}`}>
+    <div className={`mood-selector-container ${compact ? 'compact' : ''} ${iconsOnly ? 'icons-only' : ''}`}>
       <div className="mood-grid">
         {MOODS.map((mood) => {
           const isActive = selectedMood === mood.id;
@@ -92,8 +92,8 @@ const MoodSelector = ({ selectedMood, onSelect, compact = false }) => {
               title={mood.label}
             >
               <span className="mood-tile-icon">{mood.icon}</span>
-              <span className="mood-tile-label">{mood.label}</span>
-              {isActive && <span className="mood-tile-check">
+              {!iconsOnly && <span className="mood-tile-label">{mood.label}</span>}
+              {isActive && !iconsOnly && <span className="mood-tile-check">
                 <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
               </span>}
             </button>
@@ -101,7 +101,7 @@ const MoodSelector = ({ selectedMood, onSelect, compact = false }) => {
         })}
       </div>
 
-      <style jsx="true">{`
+      <style>{`
         .mood-selector-container {
           width: 100%;
           margin-bottom: 8px;
@@ -171,6 +171,22 @@ const MoodSelector = ({ selectedMood, onSelect, compact = false }) => {
           height: 16px;
         }
         
+        .mood-selector-container.icons-only .mood-grid {
+          justify-content: center;
+          gap: 12px;
+        }
+        .mood-selector-container.icons-only .mood-tile {
+          width: 50px;
+          height: 50px;
+          padding: 0;
+          justify-content: center;
+          border-radius: 50%;
+        }
+        .mood-selector-container.icons-only .mood-tile-icon {
+          width: 24px;
+          height: 24px;
+        }
+        
         [data-theme="dark"] .mood-tile {
            border-color: rgba(255, 255, 255, 0.1);
         }
@@ -179,6 +195,123 @@ const MoodSelector = ({ selectedMood, onSelect, compact = false }) => {
         }
         [data-theme="dark"] .mood-tile.active {
            background: color-mix(in srgb, var(--mood-color) 18%, transparent);
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export const MoodModal = ({ isOpen, onSelect, onClose }) => {
+  if (!isOpen) return null;
+
+  return (
+    <div className="mood-modal-overlay animate-fade-in" onClick={onClose}>
+      <div className="mood-modal-content animate-slide-up" onClick={(e) => e.stopPropagation()}>
+        <div className="text-center mb-5">
+          <h2 className="h4 fw-bold mb-2">How are you feeling?</h2>
+          <p className="text-secondary small">Select your current energy to begin writing.</p>
+        </div>
+        
+        <div className="mood-modal-grid">
+          {MOODS.map((mood) => (
+            <button
+              key={mood.id}
+              onClick={() => {
+                onSelect(mood.id);
+                setTimeout(onClose, 300);
+              }}
+              className="mood-modal-tile"
+              style={{ '--mood-color': mood.color }}
+            >
+              <div className="mood-modal-icon-box">{mood.icon}</div>
+              <span className="mood-modal-name">{mood.label}</span>
+            </button>
+          ))}
+        </div>
+        
+        <div className="text-center mt-5">
+          <button className="btn btn-link text-secondary text-decoration-none small opacity-50" onClick={onClose}>
+            Skip for now
+          </button>
+        </div>
+      </div>
+
+      <style>{`
+        .mood-modal-overlay {
+          position: fixed;
+          top: 0;
+          left: 0;
+          right: 0;
+          bottom: 0;
+          background: rgba(0, 0, 0, 0.4);
+          backdrop-filter: blur(12px);
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          z-index: 5000;
+          padding: 20px;
+        }
+        .mood-modal-content {
+          background: var(--bg-primary);
+          padding: 50px 40px;
+          border-radius: 40px;
+          width: 100%;
+          max-width: 550px;
+          box-shadow: 0 25px 80px rgba(0, 0, 0, 0.2);
+          border: 1px solid var(--border-color);
+        }
+        .mood-modal-grid {
+          display: grid;
+          grid-template-columns: repeat(4, 1fr);
+          gap: 20px;
+        }
+        @media (max-width: 500px) {
+          .mood-modal-grid {
+            grid-template-columns: repeat(3, 1fr);
+          }
+        }
+        .mood-modal-tile {
+          display: flex;
+          flex-column: column;
+          flex-direction: column;
+          align-items: center;
+          gap: 12px;
+          background: transparent;
+          border: none;
+          cursor: pointer;
+          transition: all 0.3s ease;
+          padding: 10px;
+        }
+        .mood-modal-icon-box {
+          width: 60px;
+          height: 60px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          border: 1px solid var(--border-color);
+          color: var(--text-secondary);
+          transition: all 0.3s ease;
+        }
+        .mood-modal-icon-box svg {
+          width: 24px;
+          height: 24px;
+        }
+        .mood-modal-name {
+          font-size: 0.75rem;
+          font-weight: 500;
+          color: var(--text-secondary);
+          letter-spacing: 0.5px;
+          text-transform: uppercase;
+        }
+        .mood-modal-tile:hover .mood-modal-icon-box {
+          border-color: var(--mood-color);
+          background: color-mix(in srgb, var(--mood-color) 10%, transparent);
+          color: var(--mood-color);
+          transform: translateY(-4px);
+        }
+        .mood-modal-tile:hover .mood-modal-name {
+          color: var(--text-primary);
         }
       `}</style>
     </div>

@@ -44,7 +44,7 @@ const DesignSelector = ({ selectedDesign, onSelect, onClose }) => {
         </div>
       </div>
 
-      <style jsx="true">{`
+      <style>{`
         .design-selector-overlay {
           position: fixed;
           top: 0;

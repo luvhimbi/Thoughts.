@@ -102,7 +102,7 @@ const RichTextEditor = ({ content, onChange, editorRef, design = 'minimal', plac
     <div className="rich-text-editor-wrapper">
       <EditorContent editor={editor} className={`editor-content-area entry-design-${design}`} />
       
-      <style jsx="true">{`
+      <style>{`
         .rich-text-editor-wrapper {
           width: 100%;
         }

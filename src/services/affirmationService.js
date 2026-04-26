@@ -42,6 +42,22 @@ export const affirmationService = {
 
   // Get affirmation for today
   getDailyAffirmation: async () => {
+    const CACHE_KEY = 'thoughts_daily_affirmation';
+    const today = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+
+    // Try to get from cache first
+    try {
+      const cached = localStorage.getItem(CACHE_KEY);
+      if (cached) {
+        const { date, affirmation } = JSON.parse(cached);
+        if (date === today) {
+          return affirmation;
+        }
+      }
+    } catch (e) {
+      console.error("Cache read failed:", e);
+    }
+
     try {
       const querySnapshot = await getDocs(collection(db, COLLECTION_NAME));
       const allAffirmations = querySnapshot.docs.map(doc => ({
@@ -51,7 +67,7 @@ export const affirmationService = {
 
       if (allAffirmations.length === 0) return null;
 
-      // Select affirmation based on day of the year to ensure it's the same for all users on a given day
+      // Select affirmation based on day of the year
       const now = new Date();
       const start = new Date(now.getFullYear(), 0, 0);
       const diff = now - start;
@@ -59,7 +75,19 @@ export const affirmationService = {
       const dayOfYear = Math.floor(diff / oneDay);
       
       const index = dayOfYear % allAffirmations.length;
-      return allAffirmations[index];
+      const dailyAffirmation = allAffirmations[index];
+
+      // Save to cache
+      try {
+        localStorage.setItem(CACHE_KEY, JSON.stringify({
+          date: today,
+          affirmation: dailyAffirmation
+        }));
+      } catch (e) {
+        console.error("Cache write failed:", e);
+      }
+
+      return dailyAffirmation;
     } catch (error) {
       console.error("Error fetching daily affirmation:", error);
       return null;

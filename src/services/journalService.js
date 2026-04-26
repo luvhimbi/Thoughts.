@@ -11,6 +11,11 @@ import {
 } from "firebase/firestore";
 import { db } from "../lib/firebase";
 
+// In-memory cache to reduce reads
+let _entriesCache = null;
+let _lastFetchTime = null;
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes cache
+
 export const journalService = {
   /**
    * Saves a new journal entry for a user
@@ -32,7 +37,27 @@ export const journalService = {
           year: 'numeric' 
         })
       });
-      return docRef.id;
+      const docId = docRef.id;
+      
+      // Update cache
+      if (_entriesCache) {
+        const newEntry = {
+          id: docId,
+          userId,
+          content,
+          mood,
+          design,
+          createdAt: { toMillis: () => Date.now(), toDate: () => new Date() },
+          dateString: new Date().toLocaleDateString('en-US', { 
+            month: 'long', 
+            day: 'numeric', 
+            year: 'numeric' 
+          })
+        };
+        _entriesCache = [newEntry, ..._entriesCache];
+      }
+
+      return docId;
     } catch (error) {
       console.error("Error saving entry:", error);
       throw error;
@@ -43,8 +68,13 @@ export const journalService = {
    * Fetches all entries for a specific user
    * @param {string} userId - The user's UID
    */
-  async getEntries(userId) {
+  async getEntries(userId, forceRefresh = false) {
     try {
+      // Return cached data if valid and not forced refresh
+      if (!forceRefresh && _entriesCache && _lastFetchTime && (Date.now() - _lastFetchTime < CACHE_DURATION)) {
+        return _entriesCache;
+      }
+
       const q = query(
         collection(db, "entries"), 
         where("userId", "==", userId)
@@ -60,12 +90,18 @@ export const journalService = {
         });
       }
       
-      // Client-side sorting by createdAt (or local fallback)
-      return entries.sort((a, b) => {
+      // Client-side sorting
+      const sortedEntries = entries.sort((a, b) => {
         const timeA = a.createdAt?.toMillis() || Date.now();
         const timeB = b.createdAt?.toMillis() || Date.now();
         return timeB - timeA;
       });
+
+      // Update cache
+      _entriesCache = sortedEntries;
+      _lastFetchTime = Date.now();
+
+      return sortedEntries;
     } catch (error) {
       console.error("Error fetching entries:", error);
       throw error;
@@ -102,6 +138,11 @@ export const journalService = {
   async deleteEntry(entryId) {
     try {
       await deleteDoc(doc(db, "entries", entryId));
+      
+      // Update cache
+      if (_entriesCache) {
+        _entriesCache = _entriesCache.filter(e => e.id !== entryId);
+      }
     } catch (error) {
       console.error("Error deleting entry:", error);
       throw error;
@@ -129,6 +170,13 @@ export const journalService = {
         updateData.design = design;
       }
       await updateDoc(docRef, updateData);
+
+      // Update cache
+      if (_entriesCache) {
+        _entriesCache = _entriesCache.map(e => 
+          e.id === entryId ? { ...e, ...updateData, updatedAt: { toMillis: () => Date.now() } } : e
+        );
+      }
     } catch (error) {
       console.error("Error updating entry:", error);
       throw error;
@@ -151,9 +199,28 @@ export const journalService = {
         deletePromises.push(deleteDoc(doc.ref));
       });
       await Promise.all(deletePromises);
+
+      // Clear cache
+      _entriesCache = [];
+      _lastFetchTime = Date.now();
     } catch (error) {
       console.error("Error deleting all entries:", error);
       throw error;
     }
+  },
+
+  /**
+   * Returns currently cached entries without fetching
+   */
+  getCachedEntries() {
+    return _entriesCache;
+  },
+
+  /**
+   * Clears the entries cache manually
+   */
+  clearCache() {
+    _entriesCache = null;
+    _lastFetchTime = null;
   }
 };

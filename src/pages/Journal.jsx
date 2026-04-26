@@ -9,12 +9,13 @@ import { journalService } from '../services/journalService';
 import { useSettings } from '../contexts/SettingsContext';
 import { confirmLogout } from '../utils/alertUtils';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
-import RichTextEditor, { EditorTools } from '../components/RichTextEditor';
-import MoodSelector, { MOODS } from '../components/MoodSelector';
-import TemplateSelector from '../components/TemplateSelector';
-import DesignSelector from '../components/DesignSelector';
 import confetti from 'canvas-confetti';
-
+import { MOODS } from '../components/MoodSelector';
+import JournalList from '../features/journal/JournalList';
+import JournalWriting from '../features/journal/JournalWriting';
+import JournalViewing from '../features/journal/JournalViewing';
+import JournalEditing from '../features/journal/JournalEditing';
+import PasskeyPrompt from '../components/PasskeyPrompt';
 
 const isOnlyEmojis = (htmlContent) => {
   if (!htmlContent) return false;
@@ -119,11 +120,16 @@ function Journal() {
   const [isSavingEntity, setIsSavingEntity] = useState(false);
   const [showTemplates, setShowTemplates] = useState(false);
   const [showDesigns, setShowDesigns] = useState(false);
-  const [showMoreMenu, setShowMoreMenu] = useState(false);
+  const [showPrompts, setShowPrompts] = useState(false);
   const [draftStatus, setDraftStatus] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [userStreakGoal, setUserStreakGoal] = useState(null);
   const [displayLimit, setDisplayLimit] = useState(15);
+  
+  // Persistent State Keys
+  const STATE_KEY = 'thoughts_journal_state';
+
+  const [showMoodModal, setShowMoodModal] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
   const { isCompact } = useSettings();
@@ -194,9 +200,39 @@ function Journal() {
     };
   }, [isWriting, mood, design, newThought]);
 
+  // Initialize state from localStorage
+  useEffect(() => {
+    try {
+      const savedState = localStorage.getItem(STATE_KEY);
+      if (savedState) {
+        const parsed = JSON.parse(savedState);
+        if (parsed.isWriting) setIsWriting(true);
+        if (parsed.mood) setMood(parsed.mood);
+        if (parsed.design) setDesign(parsed.design);
+        if (parsed.searchQuery) setSearchQuery(parsed.searchQuery);
+      }
+    } catch (e) { console.error("Failed to restore journal state"); }
+  }, []);
+
+  // Save state to localStorage on changes
+  useEffect(() => {
+    try {
+      localStorage.setItem(STATE_KEY, JSON.stringify({
+        isWriting,
+        mood,
+        design,
+        searchQuery
+      }));
+    } catch (e) { /* noop */ }
+  }, [isWriting, mood, design, searchQuery]);
+
+  const handleStartWriting = () => {
+    setShowMoodModal(true);
+  };
+
   useEffect(() => {
     if (location.state?.startWriting) {
-      setIsWriting(true);
+      setShowMoodModal(true);
       window.history.replaceState({}, document.title);
     }
   }, [location]);
@@ -285,14 +321,30 @@ function Journal() {
   };
 
   useEffect(() => {
+    // Try cache first for instant feel
+    const cachedProfile = authService.getCachedProfile();
+    if (cachedProfile) {
+      setUser(cachedProfile);
+      setLoading(false);
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
-        setFetchingEntries(true);
+        setUser(currentUser);
+        setLoading(false);
         setError(null);
+
+        const cached = journalService.getCachedEntries();
+        if (cached) {
+          setEntries(cached);
+          setFetchingEntries(false);
+        } else {
+          setFetchingEntries(true);
+        }
+
         try {
-          // Initialize user doc
-          await authService.ensureUserDocument(currentUser.uid);
-          setUser(currentUser);
+          // Initialize user doc in background
+          await authService.ensureUserDocument(currentUser);
 
           const fetchedEntries = await journalService.getEntries(currentUser.uid);
           setEntries(fetchedEntries);
@@ -314,7 +366,6 @@ function Journal() {
         setUser(null);
         navigate('/login');
       }
-      setLoading(false);
     });
 
     const handleBeforeInstall = (e) => {
@@ -338,6 +389,7 @@ function Journal() {
     if (!isActuallyEmpty && user) {
       setIsSavingEntity(true);
       try {
+        const previousStreak = calculateStats(entries).streak;
         const entryId = await journalService.saveEntry(user.uid, newThought, mood, design);
         const newEntry = {
           id: entryId,
@@ -360,14 +412,17 @@ function Journal() {
         setDesign('minimal');
         setIsWriting(false);
 
-        navigate('/journal/celebration', { 
-          state: { 
-            isFirst: entries.length === 0,
-            streak: currentStreak,
-            hasGoal: !!userStreakGoal,
-            goal: userStreakGoal 
-          } 
-        });
+        // Only navigate to celebration if streak actually accumulated (increased)
+        if (currentStreak > previousStreak) {
+          navigate('/journal/celebration', {
+            state: {
+              isFirst: entries.length === 0,
+              streak: currentStreak,
+              hasGoal: !!userStreakGoal,
+              goal: userStreakGoal
+            }
+          });
+        }
       } catch (error) {
         alert("Failed to save your thought. Please try again.");
       } finally {
@@ -378,6 +433,7 @@ function Journal() {
 
   const handleDiscard = () => {
     clearDraft();
+    localStorage.removeItem(STATE_KEY);
     setNewThought("");
     setMood(null);
     setDesign('minimal');
@@ -389,16 +445,18 @@ function Journal() {
       if (templateDesign) {
         setDesign(templateDesign);
       }
-      const currentContent = editorRef.current.getHTML();
-      const isEmpty = !currentContent || currentContent === '<p></p>' || currentContent.replace(/<[^>]*>/g, '').trim() === '';
+      
+      // Replace existing content as requested
+      editorRef.current.commands.setContent(templateContent);
+      setNewThought(templateContent);
+    }
+  };
 
-      if (isEmpty) {
-        editorRef.current.commands.setContent(templateContent);
-      } else {
-        editorRef.current.chain().focus('end').insertContent('<br/>' + templateContent).run();
-      }
-
-      setNewThought(editorRef.current.getHTML());
+  const handleApplyPrompt = (promptText) => {
+    if (editorRef.current) {
+      const promptHtml = `<p><strong>${promptText}</strong></p><p></p>`;
+      editorRef.current.commands.setContent(promptHtml);
+      setNewThought(promptHtml);
     }
   };
 
@@ -406,17 +464,17 @@ function Journal() {
     e.stopPropagation();
     try {
       await journalService.deleteEntry(id);
-      
+
       const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
       confetti({
         particleCount: 80,
         spread: 60,
         origin: { y: 0.8 },
-        colors: isDark 
-            ? ['#EAEAEA', '#FFFFFF', '#A0A0A0', '#4A4A4A'] 
-            : ['#2C2C2C', '#000000', '#646464', '#A0A0A0']
+        colors: isDark
+          ? ['#EAEAEA', '#FFFFFF', '#A0A0A0', '#4A4A4A']
+          : ['#2C2C2C', '#000000', '#646464', '#A0A0A0']
       });
-      
+
       setEntries(entries.filter(entry => entry.id !== id));
       setReleasingEntryId(null);
     } catch (error) {
@@ -447,14 +505,8 @@ function Journal() {
     );
   });
 
-  if (loading) {
-    return (
-      <div className="vh-100 d-flex flex-column align-items-center justify-content-center bg-white">
-        <div className="custom-spinner mb-3"></div>
-        <p className="text-secondary small animate-pulse">centering your thoughts...</p>
-      </div>
-    );
-  }
+  // Removed fullscreen loading to match Reflections.jsx speed
+
 
   if (error) {
     return (
@@ -471,10 +523,11 @@ function Journal() {
 
   if (!user) return null;
 
-  if (!user) return null;
-
   return (
     <>
+      <style>{`
+        .recording-wave div:nth-child(3) { animation-delay: 0.4s; }
+      `}</style>
       {user && user.isAnonymous && <GuestWarning />}
       {isRecording && (
         <div className="focus-mode-overlay">
@@ -505,14 +558,18 @@ function Journal() {
                     <span className="thoughts-brand thoughts-brand--md">Thoughts.</span>
                   </Link>
                 </div>
-                <Navigation onAddEntry={() => setIsWriting(true)} isDesktop={true} />
+                <Navigation onAddEntry={() => setShowMoodModal(true)} isDesktop={true} />
               </div>
 
               <div className="profile-section mt-auto pt-4 border-top">
                 <div className="d-flex flex-column gap-3">
                   <Link to="/journal/settings" className="sidebar-profile-card">
-                    <div className="profile-avatar">
-                      {user.displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+                    <div className="profile-avatar overflow-hidden">
+                      {user.photoURL ? (
+                        <img src={user.photoURL} alt={user.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                      ) : (
+                        user.displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'
+                      )}
                     </div>
                     <div className="profile-info">
                       <p className="profile-name">{user.displayName}</p>
@@ -530,7 +587,7 @@ function Journal() {
 
             {/* Mobile Bottom Navigation */}
             <div className="d-md-none">
-              <Navigation onAddEntry={() => setIsWriting(true)} isDesktop={false} />
+              <Navigation onAddEntry={() => setShowMoodModal(true)} isDesktop={false} />
             </div>
           </>
         )}
@@ -586,288 +643,51 @@ function Journal() {
 
             {/* Full Screen Editor View */}
             {isWriting ? (
-              <div className="editor-container animate-fade-in w-100">
-                {/* Minimal Top Bar */}
-                <div className="d-flex justify-content-between align-items-center mb-3 mb-md-4 w-100">
-
-                  {/* Left: Date + draft status */}
-                  <div className="d-flex gap-2 align-items-center" style={{ opacity: 0.4 }}>
-                    <span className="small text-uppercase" style={{ letterSpacing: '1.5px', fontSize: '0.7rem', fontWeight: 500 }}>
-                      {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
-                    </span>
-                    {draftStatus && (
-                      <span className="animate-fade-in" style={{ fontSize: '0.7rem', fontWeight: 400, opacity: 0.8, letterSpacing: '0.3px' }}>
-                        {draftStatus === 'restored' ? 'Draft restored' : 'Draft saved'}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Right: X, Bullet, Emoji, Dropdown, Save */}
-                  <div className="d-flex gap-1 align-items-center">
-                    <button
-                      onClick={handleDiscard}
-                      className="btn-editor-tool"
-                      title="Discard"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                    </button>
-
-                    <div style={{ width: '1px', height: '16px', background: 'var(--border-color)', margin: '0 2px' }}></div>
-
-                    <EditorTools editor={editorRef.current} />
-
-                    {/* 3-dot More Menu */}
-                    <div className="position-relative" ref={moreMenuRef}>
-                      <button
-                        onClick={() => setShowMoreMenu(!showMoreMenu)}
-                        className="btn-editor-tool"
-                        title="More options"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="5" r="2"></circle><circle cx="12" cy="12" r="2"></circle><circle cx="12" cy="19" r="2"></circle></svg>
-                      </button>
-
-                      {showMoreMenu && (
-                        <>
-                          <div className="editor-more-backdrop" onClick={() => setShowMoreMenu(false)}></div>
-                          <div className="editor-more-dropdown animate-fade-in">
-                            <button
-                              onClick={() => { toggleRecording(); setShowMoreMenu(false); }}
-                              className={`editor-more-item ${isRecording ? 'recording' : ''}`}
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg>
-                              <span>{isRecording ? 'Stop Recording' : 'Voice Input'}</span>
-                            </button>
-                            <button
-                              onClick={() => { setShowDesigns(true); setShowMoreMenu(false); }}
-                              className="editor-more-item"
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg>
-                              <span>Design</span>
-                            </button>
-                            <button
-                              onClick={() => { setShowTemplates(true); setShowMoreMenu(false); }}
-                              className="editor-more-item"
-                            >
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-                              <span>Templates</span>
-                            </button>
-                          </div>
-                        </>
-                      )}
-                    </div>
-
-                    <div style={{ width: '1px', height: '16px', background: 'var(--border-color)', margin: '0 2px' }}></div>
-
-                    <button
-                      onClick={handleSaveThought}
-                      className="btn-editor-tool btn-editor-save"
-                      disabled={(!newThought.trim() || newThought === '<p></p>') && !isRecording || isSavingEntity}
-                      title="Save"
-                    >
-                      {isSavingEntity
-                        ? <span className="loading-dots" style={{ height: '16px' }}><span></span><span></span><span></span></span>
-                        : <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>
-                      }
-                    </button>
-                  </div>
-                </div>
-
-                {showTemplates && (
-                  <TemplateSelector
-                    onSelect={handleApplyTemplate}
-                    onClose={() => setShowTemplates(false)}
-                  />
-                )}
-
-                {showDesigns && (
-                  <DesignSelector
-                    selectedDesign={design}
-                    onSelect={setDesign}
-                    onClose={() => setShowDesigns(false)}
-                  />
-                )}
-
-                <div className="px-0 px-md-4 mb-2 animate-fade-in">
-                  <div className="d-flex justify-content-between align-items-baseline mb-2">
-                    <p className="small text-secondary m-0 fw-500" style={{ fontSize: '0.65rem', textTransform: 'uppercase', letterSpacing: '1px' }}>Current Mood</p>
-                    {mood && (
-                      <button
-                        onClick={() => setMood(null)}
-                        className="btn btn-link text-secondary text-decoration-none p-0"
-                        style={{ fontSize: '0.7rem', fontWeight: 400 }}
-                      >
-                        Clear
-                      </button>
-                    )}
-                  </div>
-                  <MoodSelector selectedMood={mood} onSelect={setMood} compact={true} />
-                  <div style={{ width: '100%', height: '1px', background: 'var(--border-color)', marginTop: '16px', opacity: 0.5 }}></div>
-                </div>
-
-                {/* Writing Area */}
-                <div className="flex-grow-1 position-relative editor-scroll-container px-0 px-md-4" style={{ paddingTop: '16px' }}>
-                  {(!newThought || newThought === '<p></p>') && (
-                    <div
-                      className="position-absolute translate-middle-x start-50 text-center animate-fade-in"
-                      style={{ top: '38%', pointerEvents: 'none', width: '100%', maxWidth: '380px', zIndex: 5 }}
-                    >
-                      <p className="mb-3" style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: 300, lineHeight: 1.6, fontStyle: 'italic' }}>
-                        {(() => {
-                          const prompts = [
-                            "What's on your mind right now?",
-                            "What moment from today do you want to remember?",
-                            "What would you tell your future self?",
-                            "What are you grateful for in this moment?",
-                            "What's something you need to let go of?",
-                            "Describe how you feel, without judgement.",
-                          ];
-                          const index = Math.floor(Date.now() / 60000) % prompts.length;
-                          return prompts[index];
-                        })()}
-                      </p>
-                      <button
-                        onClick={() => setShowTemplates(true)}
-                        className="btn btn-link text-secondary text-decoration-none p-0"
-                        style={{ pointerEvents: 'auto', opacity: 0.5, fontSize: '0.8rem', fontWeight: 500 }}
-                      >
-                        or try a template
-                      </button>
-                    </div>
-                  )}
-                  <RichTextEditor
-                    content={newThought}
-                    onChange={setNewThought}
-                    editorRef={editorRef}
-                    design={design}
-                    placeholder="Begin writing..."
-                  />
-                </div>
-              </div>
-
-
+              <JournalWriting
+                newThought={newThought}
+                setNewThought={setNewThought}
+                mood={mood}
+                setMood={setMood}
+                design={design}
+                setDesign={setDesign}
+                isRecording={isRecording}
+                toggleRecording={toggleRecording}
+                isSavingEntity={isSavingEntity}
+                handleSaveThought={handleSaveThought}
+                handleDiscard={handleDiscard}
+                handleApplyTemplate={handleApplyTemplate}
+                handleApplyPrompt={handleApplyPrompt}
+                showTemplates={showTemplates}
+                setShowTemplates={setShowTemplates}
+                showDesigns={showDesigns}
+                setShowDesigns={setShowDesigns}
+                showPrompts={showPrompts}
+                setShowPrompts={setShowPrompts}
+                draftStatus={draftStatus}
+                editorRef={editorRef}
+                showMoodModal={showMoodModal}
+                setShowMoodModal={setShowMoodModal}
+                setIsWriting={setIsWriting}
+              />
             ) : (
-              <div className="entries-list">
-                {fetchingEntries ? (
-                  <div className="text-center py-5">
-                    <div className="custom-spinner mx-auto mb-3"></div>
-                    <p className="text-secondary small animate-pulse">centering your thoughts...</p>
-                  </div>
-                ) : filteredEntries.length > 0 ? (
-                  <>
-                    {filteredEntries.slice(0, displayLimit).map(entry => {
-                      const preview = getEntryPreview(entry.content);
-                      const isEmojiOnly = isOnlyEmojis(entry.content);
-                      return (
-                        <div
-                          key={entry.id}
-                          className={`list-entry animate-fade-in ${isCompact ? 'compact' : ''}`}
-                          onClick={() => navigate(`/journal/view/${entry.id}`)}
-                        >
-                        <div className="list-entry-date">
-                          <span className="list-day">{formatListDate(entry.dateString).day}</span>
-                          <span className="list-number">{formatListDate(entry.dateString).number}</span>
-                          {!entry.createdAt && (
-                            <div className="list-sync-pending mt-1" title="Syncing...">
-                              <span className="sync-dot sync-offline"></span>
-                            </div>
-                          )}
-                        </div>
-
-                        <div className="list-entry-content">
-                          {isEmojiOnly ? (
-                            <div className="timeline-emoji-only animate-fade-in">{entry.content.replace(/<[^>]*>/g, '').trim()}</div>
-                          ) : (
-                            <>
-                              <div className="d-flex align-items-center gap-2 mb-1">
-                                <h2 className="list-entry-title m-0">{preview.title}</h2>
-                                {entry.mood && (
-                                  <div
-                                    className="mood-indicator-dot"
-                                    style={{ backgroundColor: MOODS.find(m => m.id === entry.mood)?.color }}
-                                    title={MOODS.find(m => m.id === entry.mood)?.label}
-                                  ></div>
-                                )}
-                              </div>
-                              <p className="list-entry-body m-0">{preview.body}</p>
-                            </>
-                          )}
-                        </div>
-
-                        {extractFirstImage(entry.content) && (
-                          <div className="list-entry-image">
-                            <img src={extractFirstImage(entry.content)} alt="Entry thumbnail" />
-                          </div>
-                        )}
-
-                        <button
-                          className="list-release-btn"
-                          onClick={(e) => initiateRelease(entry.id, e)}
-                          title="Release this thought"
-                        >
-                          ×
-                        </button>
-
-                        {releasingEntryId === entry.id && (
-                          <div className="confirm-release-overlay position-absolute top-0 start-0 w-100 h-100 d-flex flex-column align-items-center justify-content-center p-3 text-center">
-                            <p className="small mb-3 fw-500">Release this thought forever?</p>
-                            <div className="d-flex gap-3">
-                              <button
-                                className="btn btn-sm btn-link text-dark text-decoration-none"
-                                onClick={(e) => cancelRelease(e)}
-                              >
-                                Keep it
-                              </button>
-                              <button
-                                className="btn btn-sm btn-dark rounded-pill px-3"
-                                onClick={(e) => handleConfirmRelease(entry.id, e)}
-                              >
-                                Release
-                              </button>
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                  
-                  {filteredEntries.length > displayLimit && (
-                    <div className="text-center mt-4 mb-4">
-                      <button 
-                        className="btn btn-outline-dark rounded-pill px-4 py-2 fw-500" 
-                        onClick={() => setDisplayLimit(prev => prev + 15)}
-                      >
-                        Load More Thoughts
-                      </button>
-                    </div>
-                  )}
-                  </>
-                ) : (
-                  <div className="text-center py-5">
-                    <div className="mb-4" style={{ fontSize: '3rem', opacity: 0.5 }}>◌</div>
-                    {searchQuery ? (
-                      <>
-                        <h2 className="h4 mb-2" style={{ fontWeight: 400 }}>No thoughts found.</h2>
-                        <p className="text-secondary px-4" style={{ maxWidth: '400px', margin: '0 auto' }}>
-                          Try searching for something else or clear your search to see all entries.
-                        </p>
-                        <button
-                          onClick={() => setSearchQuery("")}
-                          className="btn btn-link text-dark mt-3 text-decoration-none small fw-500"
-                        >
-                          Clear search
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <h2 className="h4 mb-2" style={{ fontWeight: 400 }}>A quiet space for you.</h2>
-                        <p className="text-secondary px-4" style={{ maxWidth: '400px', margin: '0 auto' }}>
-                          There is no right or wrong way to write. I'm here whenever you're ready to share.
-                        </p>
-                      </>
-                    )}
-                  </div>
-                )}
-              </div>
+              <JournalList
+                entries={filteredEntries}
+                fetchingEntries={fetchingEntries}
+                displayLimit={displayLimit}
+                setDisplayLimit={setDisplayLimit}
+                searchQuery={searchQuery}
+                setSearchQuery={setSearchQuery}
+                onViewEntry={(id) => navigate(`/journal/view/${id}`)}
+                onInitiateRelease={initiateRelease}
+                releasingEntryId={releasingEntryId}
+                onCancelRelease={cancelRelease}
+                onConfirmRelease={handleConfirmRelease}
+                isCompact={isCompact}
+                formatListDate={formatListDate}
+                getEntryPreview={getEntryPreview}
+                isOnlyEmojis={isOnlyEmojis}
+                extractFirstImage={extractFirstImage}
+              />
             )}
 
           </div>
@@ -902,6 +722,8 @@ function Journal() {
           </div>
         )
       }
+      {/* Passkey Registration Prompt */}
+      <PasskeyPrompt user={user} />
     </>
   );
 }

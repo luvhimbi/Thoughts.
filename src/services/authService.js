@@ -41,7 +41,7 @@ export const authService = {
       }
       
       const user = result.user;
-      const vaultData = await this.ensureUserDocument(user.uid);
+      await this.ensureUserDocument(user);
       
       return {
         uid: user.uid,
@@ -63,7 +63,7 @@ export const authService = {
     try {
       const result = await signInAnonymously(auth);
       const user = result.user;
-      const vaultData = await this.ensureUserDocument(user.uid);
+      await this.ensureUserDocument(user);
 
       return {
         uid: user.uid,
@@ -132,7 +132,7 @@ export const authService = {
       
       window.localStorage.removeItem('emailForSignIn');
       const user = result.user;
-      const vaultData = await this.ensureUserDocument(user.uid);
+      await this.ensureUserDocument(user);
 
       return {
         uid: user.uid,
@@ -192,26 +192,166 @@ export const authService = {
   },
 
   /**
-   * Ensures a user has a document in the 'users' collection with a salt.
-   * @param {string} userId 
-   * @returns {Promise<Object>} The salt and hasVault status
+   * Ensures a user has a document in the 'users' collection.
+   * @param {import('firebase/auth').User} user
+   * @returns {Promise<Object>}
    */
-  async ensureUserDocument(userId) {
+  async ensureUserDocument(user) {
     try {
-      const userRef = doc(db, "users", userId);
+      if (!user || !user.uid) return {};
+      
+      const userRef = doc(db, "users", user.uid);
       const userSnap = await getDoc(userRef);
-  
+      
+      const profile = {
+        uid: user.uid,
+        displayName: user.displayName || "Guest",
+        photoURL: user.photoURL || null,
+        email: user.email || null,
+        isAnonymous: user.isAnonymous
+      };
+
       if (!userSnap.exists()) {
         const userData = {
-          uid: userId,
+          ...profile,
           createdAt: new Date().toISOString(),
           currentStreak: 0
         };
         await setDoc(userRef, userData);
+      } else {
+        // Update photoURL and displayName if they changed
+        await setDoc(userRef, { 
+          displayName: profile.displayName, 
+          photoURL: profile.photoURL 
+        }, { merge: true });
       }
+
+      // Cache the profile for instant UI load
+      this._cacheProfile(profile);
+
+      // Register this device
+      await this.registerCurrentDevice(user.uid);
+
       return {};
     } catch (error) {
       console.error("Error ensuring user document:", error);
+      throw error;
+    }
+  },
+
+  /**
+   * Caches the user profile in localStorage
+   * @private
+   */
+  _cacheProfile(profile) {
+    try {
+      localStorage.setItem('thoughts_user_profile', JSON.stringify(profile));
+    } catch (e) { /* noop */ }
+  },
+
+  /**
+   * Gets the cached user profile
+   */
+  getCachedProfile() {
+    try {
+      const cached = localStorage.getItem('thoughts_user_profile');
+      return cached ? JSON.parse(cached) : null;
+    } catch (e) {
+      return null;
+    }
+  },
+
+  /**
+   * Registers the current device in the user's document
+   */
+  /**
+   * Registers the current device in the user's document
+   */
+  async registerCurrentDevice(userId) {
+    try {
+      const DEVICE_ID_KEY = 'thoughts_device_id';
+      let deviceId = localStorage.getItem(DEVICE_ID_KEY);
+      
+      if (!deviceId) {
+        deviceId = 'dev_' + Math.random().toString(36).substr(2, 9) + '_' + Date.now();
+        localStorage.setItem(DEVICE_ID_KEY, deviceId);
+      }
+
+      const userAgent = navigator.userAgent;
+      const platform = navigator.platform;
+      const isMobile = /iPhone|iPad|iPod|Android/i.test(userAgent);
+      
+      const deviceData = {
+        id: deviceId,
+        name: isMobile ? 'Mobile Device' : 'Desktop Browser',
+        userAgent,
+        platform,
+        lastSeen: new Date().toISOString()
+      };
+
+      const userRef = doc(db, "users", userId);
+      await setDoc(userRef, { 
+        devices: {
+          [deviceId]: deviceData
+        }
+      }, { merge: true });
+
+    } catch (error) {
+      console.error("Error registering device:", error);
+    }
+  },
+
+  /**
+   * Checks if Passkeys are supported and if the current device has one
+   */
+  async isPasskeySupported() {
+    return window.PublicKeyCredential && 
+           await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
+  },
+
+  /**
+   * Registers a Passkey for the current device
+   */
+  async registerPasskey(userId) {
+    try {
+      const challenge = new Uint8Array(32);
+      window.crypto.getRandomValues(challenge);
+      const userID = new TextEncoder().encode(userId);
+
+      const publicKey = {
+        challenge,
+        rp: { name: "Thoughts Journal", id: window.location.hostname },
+        user: {
+          id: userID,
+          name: auth.currentUser.email || userId,
+          displayName: auth.currentUser.displayName || "User"
+        },
+        pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }],
+        authenticatorSelection: {
+          authenticatorAttachment: "platform",
+          userVerification: "required",
+          residentKey: "preferred"
+        },
+        timeout: 60000
+      };
+
+      const credential = await navigator.credentials.create({ publicKey });
+      const deviceId = localStorage.getItem('thoughts_device_id');
+      
+      const userRef = doc(db, "users", userId);
+      await setDoc(userRef, {
+        devices: {
+          [deviceId]: {
+            hasPasskey: true,
+            credentialId: credential.id,
+            passkeyRegisteredAt: new Date().toISOString()
+          }
+        }
+      }, { merge: true });
+
+      return credential;
+    } catch (error) {
+      console.error("Passkey registration failed:", error);
       throw error;
     }
   },

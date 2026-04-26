@@ -18,10 +18,19 @@ function StreakCalendar() {
   const isOnline = useOnlineStatus();
 
   useEffect(() => {
+    // Try cache first for instant feel
+    const cachedProfile = authService.getCachedProfile();
+    if (cachedProfile) {
+      setUser(cachedProfile);
+      setLoading(false);
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
         setUser(currentUser);
+        setLoading(false);
         try {
+          await authService.ensureUserDocument(currentUser);
           const fetchedEntries = await journalService.getEntries(currentUser.uid);
           setEntries(fetchedEntries || []);
 
@@ -33,7 +42,6 @@ function StreakCalendar() {
       } else {
         navigate('/login');
       }
-      setLoading(false);
     });
     return () => unsubscribe();
   }, [navigate]);
@@ -41,15 +49,6 @@ function StreakCalendar() {
   const handleLogout = () => {
     confirmLogout(navigate);
   };
-
-  if (loading) {
-    return (
-      <div className="vh-100 d-flex flex-column align-items-center justify-content-center" style={{ backgroundColor: 'var(--bg-primary)' }}>
-        <div className="custom-spinner mb-3"></div>
-        <p className="text-secondary small animate-pulse">Gathering your journey...</p>
-      </div>
-    );
-  }
 
   if (!user) return null;
 
@@ -142,8 +141,12 @@ function StreakCalendar() {
         <div className="profile-section mt-auto pt-4 border-top">
           <div className="d-flex flex-column gap-3">
             <Link to="/journal/settings" className="sidebar-profile-card">
-              <div className="profile-avatar">
-                {user.displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+              <div className="profile-avatar overflow-hidden">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  user.displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'
+                )}
               </div>
               <div className="profile-info">
                 <p className="profile-name">{user.displayName}</p>

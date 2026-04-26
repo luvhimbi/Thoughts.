@@ -3,6 +3,9 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 
 const Navigation = ({ onAddEntry, isDesktop }) => {
   const [showActionMenu, setShowActionMenu] = useState(false);
+  const [showNudge, setShowNudge] = useState(() => {
+    return !localStorage.getItem('thoughts_nudge_dismissed');
+  });
   const location = useLocation();
   const navigate = useNavigate();
   const menuRef = useRef(null);
@@ -108,8 +111,24 @@ const Navigation = ({ onAddEntry, isDesktop }) => {
         </Link>
 
         <div className="position-relative mt-4">
+          {showNudge && (
+            <div 
+              className="write-nudge nudge-desktop animate-bounce-subtle"
+              onClick={() => {
+                setShowNudge(false);
+                localStorage.setItem('thoughts_nudge_dismissed', 'true');
+              }}
+            >
+              What's on your mind?
+              <div className="nudge-arrow"></div>
+            </div>
+          )}
           <button
-            onClick={() => setShowActionMenu(!showActionMenu)}
+            onClick={() => {
+              setShowNudge(false);
+              localStorage.setItem('thoughts_nudge_dismissed', 'true');
+              setShowActionMenu(!showActionMenu);
+            }}
             className={`sidebar-write-btn ${showActionMenu ? 'active' : ''}`}
           >
             <span className="icon-plus">+</span> Write
@@ -162,8 +181,24 @@ const Navigation = ({ onAddEntry, isDesktop }) => {
 
         {/* Center + Action Button */}
         <div className="d-flex justify-content-center" style={{ position: 'relative', top: '-15px' }}>
+          {showNudge && (
+            <div 
+              className="write-nudge nudge-mobile animate-bounce-subtle"
+              onClick={() => {
+                setShowNudge(false);
+                localStorage.setItem('thoughts_nudge_dismissed', 'true');
+              }}
+            >
+              What's on your mind?
+              <div className="nudge-arrow"></div>
+            </div>
+          )}
           <button
-            onClick={() => setShowActionMenu(!showActionMenu)}
+            onClick={() => {
+              setShowNudge(false);
+              localStorage.setItem('thoughts_nudge_dismissed', 'true');
+              setShowActionMenu(!showActionMenu);
+            }}
             className={`mobile-add-btn ${showActionMenu ? 'active' : ''}`}
           >
             +
@@ -187,7 +222,7 @@ const Navigation = ({ onAddEntry, isDesktop }) => {
         </Link>
       </nav>
 
-      <style jsx>{`
+      <style>{`
         .hover-bg-light:hover {
           background-color: var(--bg-secondary) !important;
         }
@@ -196,6 +231,70 @@ const Navigation = ({ onAddEntry, isDesktop }) => {
         }
         .action-menu-content button:active {
           transform: scale(0.95);
+        }
+
+        .write-nudge {
+          background: var(--text-primary);
+          color: var(--bg-primary);
+          padding: 8px 16px;
+          border-radius: 12px;
+          font-size: 0.85rem;
+          font-weight: 600;
+          position: absolute;
+          cursor: pointer;
+          box-shadow: 0 10px 25px rgba(0,0,0,0.1);
+          z-index: 1200;
+          white-space: nowrap;
+        }
+
+        .nudge-desktop {
+          bottom: 70px;
+          left: 0;
+        }
+
+        .nudge-mobile {
+          bottom: 75px;
+          left: 50%;
+          transform: translateX(-50%);
+        }
+        
+        .nudge-arrow {
+          position: absolute;
+          bottom: -6px;
+          left: 20px;
+          width: 0;
+          height: 0;
+          border-left: 6px solid transparent;
+          border-right: 6px solid transparent;
+          border-top: 6px solid var(--text-primary);
+        }
+
+        .nudge-mobile .nudge-arrow {
+          left: 50%;
+          transform: translateX(-50%);
+        }
+
+        @keyframes bounce-subtle {
+          0%, 100% { transform: translate(var(--tw-translate-x, 0), 0); }
+          50% { transform: translate(var(--tw-translate-x, 0), -5px); }
+        }
+        
+        .nudge-mobile.animate-bounce-subtle {
+          animation: bounce-mobile 3s ease-in-out infinite;
+        }
+
+        @keyframes bounce-mobile {
+          0%, 100% { transform: translate(-50%, 0); }
+          50% { transform: translate(-50%, -5px); }
+        }
+
+        .nudge-desktop.animate-bounce-subtle {
+          animation: bounce-desktop 3s ease-in-out infinite;
+        }
+
+        @keyframes bounce-desktop {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-5px); }
         }
       `}</style>
     </>

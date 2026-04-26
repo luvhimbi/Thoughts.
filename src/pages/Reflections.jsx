@@ -58,10 +58,31 @@ function Reflections() {
   const isOnline = useOnlineStatus();
 
   useEffect(() => {
+    // Try cache first for instant feel
+    const cachedProfile = authService.getCachedProfile();
+    if (cachedProfile) {
+      setUser(cachedProfile);
+      setLoading(false);
+    }
+
     const unsubscribe = onAuthStateChanged(auth, async (currentUser) => {
       if (currentUser) {
+        setUser(currentUser);
+        
+        // Try cache first for instant load
+        const cached = journalService.getCachedEntries();
+        if (cached) {
+          setEntries(cached.sort((a, b) => {
+            const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.dateString);
+            const dateB = b.createdAt?.toDate ? b.createdAt.toDate() : new Date(b.dateString);
+            return dateB - dateA;
+          }));
+        }
+        
+        setLoading(false);
+
         try {
-          setUser(currentUser);
+          await authService.ensureUserDocument(currentUser);
           const fetched = await journalService.getEntries(currentUser.uid);
           setEntries(fetched.sort((a, b) => {
             const dateA = a.createdAt?.toDate ? a.createdAt.toDate() : new Date(a.dateString);
@@ -72,9 +93,9 @@ function Reflections() {
           console.error("Error:", error);
         }
       } else {
+        setUser(null);
         navigate('/login');
       }
-      setLoading(false);
     });
     return () => unsubscribe();
   }, [navigate]);
@@ -83,14 +104,195 @@ function Reflections() {
     confirmLogout(navigate);
   };
 
-  if (loading) {
+  // Removed fullscreen loading for instant feel
+  const [viewMode, setViewMode] = useState('timeline'); // 'timeline' or 'calendar'
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedDate, setSelectedDate] = useState(null);
+
+  // Calendar Helper Functions
+  const getDaysInMonth = (year, month) => new Date(year, month + 1, 0).getDate();
+  const getFirstDayOfMonth = (year, month) => new Date(year, month, 1).getDay();
+
+  const handlePrevMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() - 1));
+  };
+
+  const handleNextMonth = () => {
+    setCurrentDate(new Date(currentDate.getFullYear(), currentDate.getMonth() + 1));
+  };
+
+  // Intro Section
+  const Header = () => (
+    <header className="mb-5 animate-slide-up">
+      <div className="d-flex justify-content-between align-items-end mb-4">
+        <div>
+          <h1 className="display-4 fw-black text-dark mb-1" style={{ letterSpacing: '-2px' }}>Reflections</h1>
+          <p className="text-secondary small fw-bold text-uppercase m-0" style={{ letterSpacing: '1px', opacity: 0.6 }}>
+            {entries.length} Total Memories
+          </p>
+        </div>
+        <div className="d-flex bg-light rounded-pill p-1 shadow-sm">
+          <button
+            onClick={() => setViewMode('timeline')}
+            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${viewMode === 'timeline' ? 'btn-white shadow-sm' : 'text-secondary'}`}
+            style={{ fontSize: '0.75rem' }}
+          >
+            Timeline
+          </button>
+          <button
+            onClick={() => setViewMode('calendar')}
+            className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${viewMode === 'calendar' ? 'btn-white shadow-sm' : 'text-secondary'}`}
+            style={{ fontSize: '0.75rem' }}
+          >
+            Calendar
+          </button>
+        </div>
+      </div>
+
+      {viewMode === 'timeline' && (
+        <div className="d-flex flex-wrap align-items-center gap-2">
+          {['all', 'week', 'month', 'year'].map(f => (
+            <button
+              key={f}
+              onClick={() => setActiveFilter(f)}
+              className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${activeFilter === f ? 'btn-dark' : 'btn-light text-secondary'}`}
+              style={{ fontSize: '0.7rem' }}
+            >
+              {f.toUpperCase()}
+            </button>
+          ))}
+        </div>
+      )}
+    </header>
+  );
+
+  const renderCalendar = () => {
+    const year = currentDate.getFullYear();
+    const month = currentDate.getMonth();
+    const daysInMonth = getDaysInMonth(year, month);
+    const firstDay = getFirstDayOfMonth(year, month);
+    
+    const days = [];
+    const prevMonthDays = getDaysInMonth(year, month - 1);
+    
+    // Previous month padding
+    for (let i = firstDay - 1; i >= 0; i--) {
+      days.push({ day: prevMonthDays - i, currentMonth: false, date: new Date(year, month - 1, prevMonthDays - i) });
+    }
+    
+    // Current month days
+    for (let i = 1; i <= daysInMonth; i++) {
+      days.push({ day: i, currentMonth: true, date: new Date(year, month, i) });
+    }
+    
+    // Next month padding
+    const remaining = 42 - days.length;
+    for (let i = 1; i <= remaining; i++) {
+      days.push({ day: i, currentMonth: false, date: new Date(year, month + 1, i) });
+    }
+
+    const monthName = currentDate.toLocaleString('default', { month: 'long' });
+
     return (
-      <div className="vh-100 d-flex flex-column align-items-center justify-content-center bg-white">
-        <div className="custom-spinner mb-3"></div>
-        <p className="text-secondary small fw-bold text-uppercase" style={{ letterSpacing: '2px' }}>Tracing your timeline...</p>
+      <div className="calendar-view bg-white border rounded-5 p-4 p-md-5 shadow-soft animate-fade-in">
+        <div className="d-flex justify-content-between align-items-center mb-5">
+          <h2 className="h4 fw-black text-dark m-0">{monthName} <span className="text-secondary opacity-50">{year}</span></h2>
+          <div className="d-flex gap-2">
+            <button onClick={handlePrevMonth} className="btn btn-light rounded-circle p-2 shadow-sm" style={{ width: '40px', height: '40px' }}>&lsaquo;</button>
+            <button onClick={handleNextMonth} className="btn btn-light rounded-circle p-2 shadow-sm" style={{ width: '40px', height: '40px' }}>&rsaquo;</button>
+          </div>
+        </div>
+
+        <div className="calendar-grid">
+          {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+            <div key={d} className="text-center xx-small fw-bold text-uppercase text-secondary mb-3" style={{ letterSpacing: '1px' }}>{d}</div>
+          ))}
+          {days.map((d, i) => {
+            const dateStr = d.date.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' });
+            const dayEntries = entries.filter(e => e.dateString === dateStr);
+            const hasEntry = dayEntries.length > 0;
+            const isToday = new Date().toDateString() === d.date.toDateString();
+            const isSelected = selectedDate && selectedDate.toDateString() === d.date.toDateString();
+
+            return (
+              <div
+                key={i}
+                onClick={() => hasEntry && setSelectedDate(isSelected ? null : d.date)}
+                className={`calendar-day ${!d.currentMonth ? 'opacity-25' : ''} ${hasEntry ? 'has-entry cursor-pointer' : ''} ${isSelected ? 'selected' : ''}`}
+                style={{
+                  aspectRatio: '1/1',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  borderRadius: '16px',
+                  position: 'relative',
+                  transition: 'all 0.3s ease',
+                  backgroundColor: isSelected ? 'var(--text-primary)' : hasEntry ? 'var(--bg-secondary)' : 'transparent',
+                  color: isSelected ? 'var(--bg-primary)' : 'var(--text-primary)',
+                  fontWeight: hasEntry || isToday ? '700' : '400',
+                  border: isToday ? '2px solid var(--text-primary)' : 'none'
+                }}
+              >
+                <span style={{ fontSize: '0.9rem' }}>{d.day}</span>
+                {hasEntry && !isSelected && (
+                  <div 
+                    className="position-absolute bottom-0 mb-2 rounded-circle" 
+                    style={{ width: '4px', height: '4px', backgroundColor: 'var(--text-primary)' }}
+                  ></div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+
+        {selectedDate && (
+          <div className="selected-day-entries mt-5 pt-5 border-top animate-slide-up">
+            <h3 className="h6 text-uppercase fw-bold text-secondary mb-4" style={{ letterSpacing: '1px' }}>
+              Thoughts from {selectedDate.toLocaleDateString('default', { month: 'long', day: 'numeric' })}
+            </h3>
+            <div className="d-flex flex-column gap-3">
+              {entries.filter(e => e.dateString === selectedDate.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })).map(entry => {
+                const { preview } = getEntryMeta(entry.content);
+                return (
+                  <div 
+                    key={entry.id}
+                    onClick={() => navigate(`/journal/view/${entry.id}`)}
+                    className="p-4 bg-light rounded-4 cursor-pointer hover-lift border transition-all"
+                  >
+                    <p className="m-0 text-dark small lh-base">{preview}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        <style>{`
+          .calendar-grid {
+            display: grid;
+            grid-template-columns: repeat(7, 1fr);
+            gap: 8px;
+          }
+          .calendar-day.has-entry:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+            background-color: var(--bg-secondary) !important;
+          }
+          .calendar-day.selected:hover {
+            background-color: var(--text-primary) !important;
+          }
+          .btn-white {
+            background: white;
+            color: var(--text-primary);
+          }
+          .shadow-soft {
+            box-shadow: 0 10px 30px rgba(0,0,0,0.02);
+          }
+        `}</style>
       </div>
     );
-  }
+  };
 
   if (!user) return null;
 
@@ -116,8 +318,12 @@ function Reflections() {
         <div className="profile-section mt-auto pt-4 border-top">
           <div className="d-flex flex-column gap-3">
             <Link to="/journal/settings" className="sidebar-profile-card">
-              <div className="profile-avatar">
-                {user.displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+              <div className="profile-avatar overflow-hidden">
+                {user.photoURL ? (
+                  <img src={user.photoURL} alt={user.displayName} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                ) : (
+                  user.displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'
+                )}
               </div>
               <div className="profile-info">
                 <p className="profile-name">{user.displayName}</p>
@@ -140,32 +346,12 @@ function Reflections() {
         <div className="py-5 px-4 ps-md-5" style={{ maxWidth: '800px' }}>
           {user?.isAnonymous && <GuestWarning />}
 
-          {/* Intro Section */}
-          <header className="mb-5 animate-slide-up">
-            <h1 className="display-4 fw-black text-dark mb-3" style={{ letterSpacing: '-2px' }}>Reflections</h1>
-            <div className="d-flex flex-wrap align-items-center gap-4 text-secondary">
-              <div className="d-flex align-items-center gap-2">
-                <span className="h4 m-0 text-dark fw-bold">{entries.length}</span>
-                <span className="small text-uppercase fw-bold" style={{ letterSpacing: '1px', opacity: 0.6 }}>Total Memories</span>
-              </div>
-              <div className="vr d-none d-md-block" style={{ height: '20px' }}></div>
-              <div className="d-flex align-items-center gap-3">
-                {['all', 'week', 'month', 'year'].map(f => (
-                  <button
-                    key={f}
-                    onClick={() => setActiveFilter(f)}
-                    className={`btn btn-sm rounded-pill px-3 fw-bold transition-all ${activeFilter === f ? 'btn-dark' : 'btn-light text-secondary'}`}
-                    style={{ fontSize: '0.7rem' }}
-                  >
-                    {f.toUpperCase()}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </header>
 
-          {/* Timeline Content */}
-          {visibleBuckets.length > 0 ? (
+          <Header />
+
+          {viewMode === 'calendar' ? (
+            renderCalendar()
+          ) : visibleBuckets.length > 0 ? (
             <div className="position-relative">
               {/* The Vertical Spine */}
               <div

@@ -2,7 +2,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useSettings } from '../contexts/SettingsContext';
 import DesignSelector from '../components/DesignSelector';
-import { showReleaseSuccess } from '../utils/alertUtils';
+import { showReleaseSuccess, showReleaseInfo } from '../utils/alertUtils';
+import RichTextEditor from '../components/RichTextEditor';
 import confetti from 'canvas-confetti';
 
 const Release = () => {
@@ -16,7 +17,7 @@ const Release = () => {
   
   const canvasRef = useRef(null);
   const containerRef = useRef(null);
-  const textareaRef = useRef(null);
+  const editorRef = useRef(null);
   const recognitionRef = useRef(null);
   const shouldRecordRef = useRef(false);
   
@@ -43,8 +44,9 @@ const Release = () => {
           }
         }
 
-        if (finalTranscripts) {
-          setText(prev => prev + finalTranscripts);
+        if (finalTranscripts && editorRef.current) {
+          editorRef.current.chain().focus('end').insertContent(finalTranscripts).run();
+          setText(editorRef.current.getHTML());
         }
         setInterimTranscript(currentInterim);
       };
@@ -112,21 +114,22 @@ const Release = () => {
   const startBurnAnimation = () => {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext('2d');
-    const textarea = textareaRef.current;
+    const editorEl = containerRef.current.querySelector('.ProseMirror') || containerRef.current;
 
-    const rect = textarea.getBoundingClientRect();
+    const rect = editorEl.getBoundingClientRect();
     canvas.width = rect.width;
     canvas.height = rect.height;
-    canvas.style.top = `${textarea.offsetTop}px`;
-    canvas.style.left = `${textarea.offsetLeft}px`;
+    canvas.style.top = `${editorEl.offsetTop}px`;
+    canvas.style.left = `${editorEl.offsetLeft}px`;
 
-    ctx.font = window.getComputedStyle(textarea).font;
+    ctx.font = window.getComputedStyle(editorEl).font;
     ctx.fillStyle = theme === 'dark' ? '#EAEAEA' : '#2C2C2C';
     ctx.textBaseline = 'top';
     
-    const words = text.split(' ');
+    const plainText = text.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
+    const words = plainText.split(' ');
     let line = '';
-    const lineHeight = parseInt(window.getComputedStyle(textarea).lineHeight);
+    const lineHeight = parseInt(window.getComputedStyle(editorEl).lineHeight) || 24;
     let y = 0;
     const maxWidth = rect.width - 40;
 
@@ -166,7 +169,7 @@ const Release = () => {
       }
     }
 
-    textarea.style.opacity = '0';
+    editorEl.style.opacity = '0';
 
     let animationFrame;
     const animate = () => {
@@ -217,8 +220,9 @@ const Release = () => {
     setText('');
     setIsBurning(false);
     setIsComplete(false);
-    if (textareaRef.current) {
-      textareaRef.current.style.opacity = '1';
+    if (containerRef.current) {
+      const editorEl = containerRef.current.querySelector('.ProseMirror');
+      if (editorEl) editorEl.style.opacity = '1';
     }
   };
 
@@ -242,92 +246,82 @@ const Release = () => {
         </div>
       )}
 
-      {/* Header */}
-      <header className="container py-4 border-bottom d-flex justify-content-between align-items-center" style={{ borderColor: 'var(--border-color)' }}>
+      {/* Floating Navigation */}
+      <nav className="position-absolute top-0 w-100 px-4 py-4 d-flex justify-content-between align-items-center" style={{ zIndex: 100 }}>
         <button 
           onClick={() => navigate('/journal')} 
-          className="btn btn-link text-dark text-decoration-none p-0 d-flex align-items-center justify-content-center hover-lift" 
-          style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)' }}
+          className="btn btn-link text-secondary text-decoration-none p-0 d-flex align-items-center justify-content-center hover-lift" 
+          style={{ width: '32px', height: '32px', opacity: 0.5 }}
         >
-          <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>←</span>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="19" y1="12" x2="5" y2="12"></line><polyline points="12 19 5 12 12 5"></polyline></svg>
         </button>
-        <div className="fw-bold text-dark text-uppercase" style={{ fontSize: '0.85rem', letterSpacing: '2px' }}>Release</div>
         
-        {!isComplete ? (
+        <div className="d-flex align-items-center gap-3">
           <button 
-            onClick={handleRelease}
-            disabled={!text.trim() || isBurning}
-            className="btn btn-dark rounded-pill px-4 py-2"
-            style={{ fontSize: '0.85rem', fontWeight: 700, minWidth: '100px' }}
+            onClick={showReleaseInfo}
+            className="btn btn-link text-secondary text-decoration-none p-0 d-flex align-items-center justify-content-center"
+            style={{ width: '24px', height: '24px', opacity: 0.5 }}
+            title="What is this?"
           >
-            {isBurning ? 'Burning...' : 'Burn'}
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="16" x2="12" y2="12"></line><line x1="12" y1="8" x2="12.01" y2="8"></line></svg>
           </button>
-        ) : (
-          <div style={{ width: '100px' }}></div>
-        )}
-      </header>
+          
+          {!isComplete && (
+            <button 
+              onClick={handleRelease}
+              disabled={!text.trim() || isBurning}
+              className={`btn-release-action ${text.trim() ? 'active' : ''}`}
+            >
+              {isBurning ? 'Releasing...' : 'Release'}
+            </button>
+          )}
+        </div>
+      </nav>
 
       {/* Content */}
-      <main className="flex-grow-1 d-flex flex-column align-items-center justify-content-center px-4" style={{ paddingTop: '20px', paddingBottom: '40px' }}>
-        <div className="text-center mb-4" style={{ maxWidth: '500px' }}>
-          <div className="d-flex align-items-center justify-content-center gap-3 mb-2">
-            <div className="d-inline-flex align-items-center justify-content-center rounded-circle shadow-sm text-dark" style={{ width: '48px', height: '48px', backgroundColor: 'var(--bg-secondary)', border: '1px solid var(--border-color)' }}>
-              <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z"></path></svg>
-            </div>
-            <h1 className="hero-title m-0" style={{ fontSize: '2.2rem', letterSpacing: '-1.5px' }}>Burn your thoughts</h1>
-          </div>
-          <p className="hero-subtitle mb-0" style={{ fontSize: '0.95rem', opacity: 0.6, fontWeight: 400 }}>Write down what's weighing on you, then let it go forever.</p>
-        </div>
-
-        {/* Toolbar */}
-        <div className="d-flex gap-2 mb-2 justify-content-end w-100" style={{ maxWidth: '700px' }}>
-          <button 
-            onClick={toggleRecording}
-            className={`btn-tool ${isRecording ? 'active' : ''}`}
-            title="Voice input"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg>
-          </button>
-          <button 
-            onClick={() => setShowDesigns(true)}
-            className="btn-tool"
-            title="Design"
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg>
-          </button>
+      <main className="flex-grow-1 d-flex flex-column align-items-center px-4 pt-5">
+        <div className="text-center mb-5 animate-fade-in" style={{ marginTop: '4vh' }}>
+          <h1 className="fw-light text-secondary mb-1" style={{ fontSize: '1.5rem', letterSpacing: '4px', textTransform: 'uppercase', opacity: 0.4 }}>Let it go.</h1>
         </div>
 
         <div 
           ref={containerRef}
-          className="position-relative w-100" 
-          style={{ maxWidth: '700px', height: '350px' }}
+          className="position-relative w-100 animate-slide-up" 
+          style={{ maxWidth: '750px', flexGrow: 1, marginBottom: '40px' }}
         >
-          <textarea
-            ref={textareaRef}
-            className={`form-control editor-textarea w-100 h-100 p-4 border-0 shadow-soft entry-design-${design}`}
-            placeholder="What would you like to release today?..."
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-            disabled={isBurning}
-            style={{ 
-              resize: 'none', 
-              fontSize: '1.15rem',
-              lineHeight: '1.6',
-              backgroundColor: theme === 'dark' ? 'rgba(255,255,255,0.02)' : 'rgba(0,0,0,0.015)',
-              borderRadius: '24px',
-              transition: 'opacity 0.4s cubic-bezier(0.4, 0, 0.2, 1)',
-              border: '1px solid var(--border-color)'
-            }}
-          />
+          {/* Writing Area */}
+          <div className="w-100 px-md-5">
+            <RichTextEditor
+              content={text}
+              onChange={setText}
+              editorRef={editorRef}
+              design="minimal"
+              placeholder="Let it all out here..."
+            />
+          </div>
           <canvas 
             ref={canvasRef}
             className="position-absolute pointer-events-none"
             style={{ pointerEvents: 'none', zIndex: 10 }}
           />
-        </div>
 
-        <div className="mt-3">
-          {/* Old isComplete UI removed in favor of modal */}
+          {/* Inline Tools */}
+          <div className="position-absolute bottom-0 end-0 p-4 d-flex gap-2" style={{ zIndex: 5 }}>
+            <button 
+              onClick={toggleRecording}
+              className={`btn-tool-minimal ${isRecording ? 'active' : ''}`}
+              title="Voice input"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"></path><path d="M19 10v2a7 7 0 0 1-14 0v-2"></path><line x1="12" x2="12" y1="19" y2="22"></line></svg>
+            </button>
+            <button 
+              onClick={() => setShowDesigns(true)}
+              className="btn-tool-minimal"
+              title="Design"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="18" height="18" x="3" y="3" rx="2"></rect><path d="M3 9h18"></path><path d="M9 21V9"></path></svg>
+            </button>
+          </div>
         </div>
       </main>
 
@@ -339,48 +333,57 @@ const Release = () => {
         />
       )}
 
-      <style jsx>{`
+      <style>{`
+        .btn-release-action {
+          padding: 8px 24px;
+          border-radius: 100px;
+          border: 1px solid var(--border-color);
+          background: transparent;
+          color: var(--text-secondary);
+          font-size: 0.8rem;
+          font-weight: 600;
+          letter-spacing: 1px;
+          text-transform: uppercase;
+          transition: all 0.3s ease;
+          opacity: 0.3;
+          pointer-events: none;
+        }
+        .btn-release-action.active {
+          opacity: 1;
+          pointer-events: auto;
+          background: var(--text-primary);
+          color: var(--bg-primary);
+          border-color: var(--text-primary);
+        }
+
+        .btn-tool-minimal {
+          width: 36px;
+          height: 36px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 50%;
+          border: none;
+          background: transparent;
+          color: var(--text-secondary);
+          opacity: 0.4;
+          transition: all 0.2s ease;
+          cursor: pointer;
+        }
+        .btn-tool-minimal:hover {
+          opacity: 1;
+          background: var(--bg-secondary);
+          color: var(--text-primary);
+        }
+        .btn-tool-minimal.active {
+          opacity: 1;
+          color: #ff4d4d;
+        }
         .shadow-soft {
           box-shadow: 0 10px 40px rgba(0, 0, 0, 0.04);
         }
         [data-theme="dark"] .shadow-soft {
           box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2);
-        }
-        .btn-minimal-outline:hover {
-          opacity: 1 !important;
-        }
-        .btn-tool {
-          width: 40px;
-          height: 40px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border: 1px solid var(--border-color);
-          background: var(--bg-secondary);
-          border-radius: 12px;
-          color: var(--text-secondary);
-          transition: all 0.2s ease;
-          cursor: pointer;
-        }
-        .btn-tool:hover {
-          background: var(--bg-primary);
-          color: var(--text-primary);
-          border-color: var(--text-primary);
-        }
-        .btn-tool.active {
-          background: var(--text-primary);
-          color: var(--bg-primary);
-          border-color: var(--text-primary);
-        }
-        .recording {
-          animation: pulse-red 1.5s infinite;
-          color: #ff4d4d;
-          border-color: #ff4d4d;
-        }
-        @keyframes pulse-red {
-          0% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0.4); }
-          70% { box-shadow: 0 0 0 10px rgba(255, 77, 77, 0); }
-          100% { box-shadow: 0 0 0 0 rgba(255, 77, 77, 0); }
         }
       `}</style>
     </div>

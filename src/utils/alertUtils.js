@@ -176,3 +176,21 @@ export const showReleaseSuccess = async () => {
     timerProgressBar: true
   });
 };
+
+/**
+ * showReleaseInfo — explain the purpose of the release page
+ */
+export const showReleaseInfo = () => {
+  return ThoughtsSwal.fire({
+    title: 'About Release',
+    html: `
+      <div style="text-align: left; font-size: 0.95rem; line-height: 1.6;">
+        <p>The Release page is a private space to let go of heavy thoughts.</p>
+        <p>Write down what's weighing on you, and when you're ready, release it. The text will burn away into particles and will <strong>not be saved</strong> to your journal—it's gone forever, helping you find mental clarity.</p>
+        <p class="mt-3 text-secondary italic">"What you release no longer holds power over you."</p>
+      </div>
+    `,
+    confirmButtonText: 'I understand',
+    icon: 'info'
+  });
+};

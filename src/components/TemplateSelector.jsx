@@ -56,7 +56,7 @@ const TemplateSelector = ({ onSelect, onClose }) => {
         </div>
       </div>
       
-      <style jsx="true">{`
+      <style>{`
         .template-selector-overlay {
           position: fixed;
           top: 0;
