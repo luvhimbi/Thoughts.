@@ -324,31 +324,11 @@ function Settings() {
                 <div className="d-flex flex-column gap-3">
                   {Object.values(userData.devices).sort((a, b) => new Date(b.lastSeen) - new Date(a.lastSeen)).map((dev) => (
                     <div key={dev.id} className="d-flex justify-content-between align-items-center p-3 bg-light rounded-3">
-                      <div className="flex-grow-1">
-                        <div className="d-flex align-items-center gap-2">
-                          <h5 className="m-0 h6 text-dark">{dev.name}</h5>
-                          {dev.id === localStorage.getItem('thoughts_device_id') && <span className="badge bg-dark" style={{ fontSize: '0.6rem' }}>Current</span>}
-                          {dev.hasPasskey && <span className="badge bg-success-subtle text-success" style={{ fontSize: '0.6rem' }}>Passkey Secured</span>}
-                        </div>
-                        <p className="m-0 text-secondary xx-small mt-1">{dev.platform} • Last seen {new Date(dev.lastSeen).toLocaleDateString()}</p>
+                      <div>
+                        <h5 className="m-0 h6 text-dark">{dev.name} {dev.id === localStorage.getItem('thoughts_device_id') && <span className="badge bg-dark ms-2" style={{ fontSize: '0.6rem' }}>Current</span>}</h5>
+                        <p className="m-0 text-secondary xx-small mt-1">{dev.platform} • {new Date(dev.lastSeen).toLocaleDateString()}</p>
                       </div>
-                      <div className="d-flex align-items-center gap-3">
-                        {dev.id === localStorage.getItem('thoughts_device_id') && !dev.hasPasskey && (
-                          <button 
-                            onClick={async () => {
-                              try {
-                                await authService.registerPasskey(user.uid);
-                                const data = await authService.getUserData(user.uid);
-                                setUserData(data);
-                              } catch (e) { /* error handled in service */ }
-                            }}
-                            className="btn btn-sm btn-outline-dark rounded-pill px-3 py-1 xx-small fw-bold"
-                          >
-                            Add Passkey
-                          </button>
-                        )}
-                        <span className="text-success small fw-bold d-none d-sm-inline">Online</span>
-                      </div>
+                      <span className="text-success small fw-bold">Active</span>
                     </div>
                   ))}
                 </div>

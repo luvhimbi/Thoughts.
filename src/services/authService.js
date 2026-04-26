@@ -301,60 +301,6 @@ export const authService = {
     }
   },
 
-  /**
-   * Checks if Passkeys are supported and if the current device has one
-   */
-  async isPasskeySupported() {
-    return window.PublicKeyCredential && 
-           await PublicKeyCredential.isUserVerifyingPlatformAuthenticatorAvailable();
-  },
-
-  /**
-   * Registers a Passkey for the current device
-   */
-  async registerPasskey(userId) {
-    try {
-      const challenge = new Uint8Array(32);
-      window.crypto.getRandomValues(challenge);
-      const userID = new TextEncoder().encode(userId);
-
-      const publicKey = {
-        challenge,
-        rp: { name: "Thoughts Journal", id: window.location.hostname },
-        user: {
-          id: userID,
-          name: auth.currentUser.email || userId,
-          displayName: auth.currentUser.displayName || "User"
-        },
-        pubKeyCredParams: [{ alg: -7, type: "public-key" }, { alg: -257, type: "public-key" }],
-        authenticatorSelection: {
-          authenticatorAttachment: "platform",
-          userVerification: "required",
-          residentKey: "preferred"
-        },
-        timeout: 60000
-      };
-
-      const credential = await navigator.credentials.create({ publicKey });
-      const deviceId = localStorage.getItem('thoughts_device_id');
-      
-      const userRef = doc(db, "users", userId);
-      await setDoc(userRef, {
-        devices: {
-          [deviceId]: {
-            hasPasskey: true,
-            credentialId: credential.id,
-            passkeyRegisteredAt: new Date().toISOString()
-          }
-        }
-      }, { merge: true });
-
-      return credential;
-    } catch (error) {
-      console.error("Passkey registration failed:", error);
-      throw error;
-    }
-  },
 
   /**
    * Updates the user's streak in the database

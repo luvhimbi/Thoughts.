@@ -15,7 +15,6 @@ import JournalList from '../features/journal/JournalList';
 import JournalWriting from '../features/journal/JournalWriting';
 import JournalViewing from '../features/journal/JournalViewing';
 import JournalEditing from '../features/journal/JournalEditing';
-import PasskeyPrompt from '../components/PasskeyPrompt';
 
 const isOnlyEmojis = (htmlContent) => {
   if (!htmlContent) return false;
@@ -722,8 +721,6 @@ function Journal() {
           </div>
         )
       }
-      {/* Passkey Registration Prompt */}
-      <PasskeyPrompt user={user} />
     </>
   );
 }
