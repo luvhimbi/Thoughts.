@@ -8,6 +8,7 @@ import { confirmLogout, confirmDeleteData, confirmDeleteAccount } from '../utils
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import GuestWarning from '../components/GuestWarning';
 import { pushService } from '../services/pushService';
+import Navigation from '../components/Navigation';
 
 function Settings() {
   const [user, setUser] = useState(null);
@@ -31,7 +32,6 @@ function Settings() {
         setUser(currentUser);
         setNewName(currentUser.displayName || "");
 
-        // Check push status
         const status = await pushService.getSubscriptionStatus();
         setIsSubscribed(status);
       } else {
@@ -115,24 +115,49 @@ function Settings() {
   if (!user) return null;
 
   return (
-    <>
-      {user && user.isAnonymous && <GuestWarning />}
-      <div className="journal-page min-vh-100 d-flex flex-column animate-fade-in" style={{ backgroundColor: 'var(--bg-primary)' }}>
-        <header className="container py-4 border-bottom d-flex justify-content-between align-items-center">
-          <button onClick={() => navigate('/journal')} className="btn btn-link text-dark text-decoration-none p-0 d-flex align-items-center justify-content-center hover-lift" style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)' }}>
-            <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>←</span>
-          </button>
-          <div className="fw-bold text-dark text-uppercase" style={{ fontSize: '0.85rem', letterSpacing: '2px' }}>Settings</div>
-          <button onClick={handleLogout} className="btn btn-link text-dark text-decoration-none p-0 d-flex align-items-center justify-content-center hover-lift" style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)' }} title="Sign Out">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
-              <polyline points="16 17 21 12 16 7"></polyline>
-              <line x1="21" y1="12" x2="9" y2="12"></line>
-            </svg>
-          </button>
-        </header>
+    <div className="journal-page w-100 min-vh-100 d-flex flex-md-row flex-column" style={{ backgroundColor: 'var(--bg-primary)' }}>
 
-        <main className="container flex-grow-1 py-5" style={{ maxWidth: '650px' }}>
+      {/* Desktop Sidebar */}
+      <aside className="desktop-sidebar d-none d-md-flex flex-column justify-content-between py-5 px-4 border-end bg-transparent" style={{ width: '260px', height: '100vh', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div>
+          <div className="mb-5 px-2">
+            <Link to="/journal" className="navbar-brand text-decoration-none">
+              <span className="thoughts-brand thoughts-brand--md">Thoughts.</span>
+            </Link>
+          </div>
+          <Navigation isDesktop={true} />
+        </div>
+
+        <div className="profile-section mt-auto pt-4 border-top">
+          <div className="d-flex flex-column gap-3">
+            <Link to="/journal/settings" className="sidebar-profile-card">
+              <div className="profile-avatar">
+                {user.displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+              </div>
+              <div className="profile-info">
+                <p className="profile-name">{user.displayName}</p>
+              </div>
+            </Link>
+            <button onClick={handleLogout} className="sidebar-logout-btn">
+              Logout
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="d-md-none">
+        <Navigation isDesktop={false} />
+      </div>
+
+      {/* Main Content */}
+      <main className="flex-grow-1 animate-fade-in overflow-auto w-100" style={{ backgroundColor: 'var(--bg-primary)' }}>
+        <div className="py-5 px-4 ps-md-5 mx-auto" style={{ maxWidth: '650px' }}>
+          {user && user.isAnonymous && <GuestWarning />}
+
+          {/* Page Title */}
+          <h2 className="fw-bold text-dark text-uppercase mb-5" style={{ fontSize: '0.85rem', letterSpacing: '2px' }}>Settings</h2>
+
           {/* Profile Section */}
           <section className="settings-section mb-5">
             <h3 className="h6 text-secondary text-uppercase mb-3" style={{ fontSize: '0.75rem', letterSpacing: '1px' }}>Your Profile</h3>
@@ -204,7 +229,7 @@ function Settings() {
                     <option value="light">Light Mode</option>
                     <option value="dark">Dark Mode</option>
                   </select>
-                  <span className="position-absolute text-secondary" style={{ right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.8rem' }}>▼</span>
+                  <span className="position-absolute text-secondary" style={{ right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.8rem' }}>&#9660;</span>
                 </div>
               </div>
               <div className="d-flex justify-content-between align-items-center p-4 border-bottom">
@@ -229,7 +254,7 @@ function Settings() {
                     <option>Formal</option>
                     <option>Natural</option>
                   </select>
-                  <span className="position-absolute text-secondary" style={{ right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.8rem' }}>▼</span>
+                  <span className="position-absolute text-secondary" style={{ right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.8rem' }}>&#9660;</span>
                 </div>
               </div>
               <div className="d-flex justify-content-between align-items-center p-4">
@@ -256,7 +281,7 @@ function Settings() {
                     <option value="Lora">Elegant (Serif)</option>
                     <option value="Garamond">Classic (Serif)</option>
                   </select>
-                  <span className="position-absolute text-secondary" style={{ right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.8rem' }}>▼</span>
+                  <span className="position-absolute text-secondary" style={{ right: '10px', top: '50%', transform: 'translateY(-50%)', pointerEvents: 'none', fontSize: '0.8rem' }}>&#9660;</span>
                 </div>
               </div>
             </div>
@@ -271,7 +296,7 @@ function Settings() {
                   <h5 className="m-0 h6 text-dark fw-600">Help & Legal</h5>
                   <p className="m-0 text-secondary x-small mt-1 text-uppercase fw-600 opacity-75" style={{ letterSpacing: '0.5px' }}>Support, Privacy, and Terms</p>
                 </div>
-                <span className="text-secondary opacity-50">→</span>
+                <span className="text-secondary opacity-50">&rarr;</span>
               </Link>
             </div>
           </section>
@@ -307,13 +332,12 @@ function Settings() {
             </div>
           </section>
 
-        </main>
-
-        <footer className="container py-4 text-center border-top mt-auto" style={{ opacity: 0.6 }}>
-          Thoughts Journaling App • Version 1.0.0
-        </footer>
-      </div>
-    </>
+          <footer className="py-4 text-center border-top mt-auto" style={{ opacity: 0.6 }}>
+            Thoughts Journaling App - Version 1.0.0
+          </footer>
+        </div>
+      </main>
+    </div>
   );
 }
 

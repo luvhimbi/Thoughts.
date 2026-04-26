@@ -123,6 +123,7 @@ function Journal() {
   const [draftStatus, setDraftStatus] = useState(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [userStreakGoal, setUserStreakGoal] = useState(null);
+  const [displayLimit, setDisplayLimit] = useState(15);
   const navigate = useNavigate();
   const location = useLocation();
   const { isCompact } = useSettings();
@@ -527,33 +528,6 @@ function Journal() {
               </div>
             </aside>
 
-            {/* Mobile Top Header (Minimal) */}
-            <header className="mobile-header d-md-none d-flex justify-content-between align-items-center py-3 px-4 border-bottom shadow-sm sticky-top" style={{ zIndex: 100, backgroundColor: 'var(--element-bg)' }}>
-              <div className="d-flex align-items-center gap-3">
-                <div className={`sync-dot ${isOnline ? 'sync-online' : 'sync-offline'}`}></div>
-                <Link to="/journal" className="navbar-brand text-decoration-none">
-                  <span className="thoughts-brand">Thoughts.</span>
-                </Link>
-              </div>
-
-              <div className="position-relative profile-menu-wrapper">
-                <div
-                  className="rounded-circle d-flex align-items-center justify-content-center bg-light text-dark fw-bold cursor-pointer transition-all"
-                  style={{ width: '36px', height: '36px', fontSize: '0.9rem', border: '1px solid #eee' }}
-                  onClick={() => setIsProfileOpen(!isProfileOpen)}
-                >
-                  {user.displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
-                </div>
-
-                {isProfileOpen && (
-                  <div className="profile-dropdown position-absolute end-0 mt-2 p-2 shadow-lg border rounded-3 animate-fade-in" style={{ width: '160px', zIndex: 1100, backgroundColor: 'var(--element-bg)' }}>
-                    <Link to="/journal/settings" className="dropdown-item p-2 text-dark text-decoration-none d-block rounded-2 small">Settings</Link>
-                    <button onClick={handleLogout} className="dropdown-item p-2 text-danger text-decoration-none d-block w-100 text-start border-0 bg-transparent rounded-2 small">Logout</button>
-                  </div>
-                )}
-              </div>
-            </header>
-
             {/* Mobile Bottom Navigation */}
             <div className="d-md-none">
               <Navigation onAddEntry={() => setIsWriting(true)} isDesktop={false} />
@@ -779,15 +753,16 @@ function Journal() {
                     <p className="text-secondary small animate-pulse">centering your thoughts...</p>
                   </div>
                 ) : filteredEntries.length > 0 ? (
-                  filteredEntries.map(entry => {
-                    const preview = getEntryPreview(entry.content);
-                    const isEmojiOnly = isOnlyEmojis(entry.content);
-                    return (
-                      <div
-                        key={entry.id}
-                        className={`list-entry animate-fade-in ${isCompact ? 'compact' : ''}`}
-                        onClick={() => navigate(`/journal/view/${entry.id}`)}
-                      >
+                  <>
+                    {filteredEntries.slice(0, displayLimit).map(entry => {
+                      const preview = getEntryPreview(entry.content);
+                      const isEmojiOnly = isOnlyEmojis(entry.content);
+                      return (
+                        <div
+                          key={entry.id}
+                          className={`list-entry animate-fade-in ${isCompact ? 'compact' : ''}`}
+                          onClick={() => navigate(`/journal/view/${entry.id}`)}
+                        >
                         <div className="list-entry-date">
                           <span className="list-day">{formatListDate(entry.dateString).day}</span>
                           <span className="list-number">{formatListDate(entry.dateString).number}</span>
@@ -853,7 +828,19 @@ function Journal() {
                         )}
                       </div>
                     );
-                  })
+                  })}
+                  
+                  {filteredEntries.length > displayLimit && (
+                    <div className="text-center mt-4 mb-4">
+                      <button 
+                        className="btn btn-outline-dark rounded-pill px-4 py-2 fw-500" 
+                        onClick={() => setDisplayLimit(prev => prev + 15)}
+                      >
+                        Load More Thoughts
+                      </button>
+                    </div>
+                  )}
+                  </>
                 ) : (
                   <div className="text-center py-5">
                     <div className="mb-4" style={{ fontSize: '3rem', opacity: 0.5 }}>◌</div>

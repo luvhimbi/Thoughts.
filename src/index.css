@@ -3341,16 +3341,6 @@ textarea.form-control:focus {
   padding-left: 60px !important;
 }
 
-/* Hide Navigation on Mobile */
-@media (max-width: 768px) {
-
-  .public-navbar,
-  .public-navbar__drawer,
-  .public-navbar__backdrop,
-  .mobile-header {
-    display: none !important;
-  }
-}
 
 /* Editor More Dropdown */
 .editor-more-backdrop {

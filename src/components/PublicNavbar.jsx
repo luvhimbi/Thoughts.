@@ -55,7 +55,7 @@ const PublicNavbar = () => {
         <div className="public-navbar__inner container">
           {/* Brand */}
           <Link 
-            to={user ? '/journal' : (location.pathname === '/login' || location.pathname === '/register' ? location.pathname : '/')} 
+            to={user ? '/journal' : '/'} 
             className="public-navbar__brand" 
             onClick={closeMenu}
           >

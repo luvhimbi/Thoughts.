@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { useOnlineStatus } from '../hooks/useOnlineStatus';
 import GuestWarning from '../components/GuestWarning';
 import { auth } from '../lib/firebase';
 import { onAuthStateChanged } from 'firebase/auth';
 import { journalService } from '../services/journalService';
 import { authService } from '../services/authService';
+import Navigation from '../components/Navigation';
+import { confirmLogout } from '../utils/alertUtils';
 
 function StreakCalendar() {
   const [user, setUser] = useState(null);
@@ -35,6 +37,10 @@ function StreakCalendar() {
     });
     return () => unsubscribe();
   }, [navigate]);
+
+  const handleLogout = () => {
+    confirmLogout(navigate);
+  };
 
   if (loading) {
     return (
@@ -67,7 +73,6 @@ function StreakCalendar() {
   let currentStreak = 0;
   let checkDate = new Date(today.getFullYear(), today.getMonth(), today.getDate());
 
-  // If today is missing, start checking from yesterday
   if (!entriesDatesSet.has(todayStr)) {
     checkDate.setDate(checkDate.getDate() - 1);
   }
@@ -96,7 +101,6 @@ function StreakCalendar() {
     longestStreak = Math.max(longestStreak, tempStreak);
   }
 
-  // FIX: Ensure Best Streak is at least the Current Streak
   const bestStreak = Math.max(longestStreak, currentStreak);
 
   // Goal Progress Calculation
@@ -122,18 +126,45 @@ function StreakCalendar() {
   }
 
   return (
-    <>
-      {user && user.isAnonymous && <GuestWarning />}
-      <div className="journal-page min-vh-100 d-flex flex-column animate-fade-in" style={{ backgroundColor: 'var(--bg-primary)' }}>
-        <header className="container py-4 d-flex justify-content-between align-items-center">
-          <button onClick={() => navigate('/journal')} className="btn btn-link text-dark text-decoration-none p-0 d-flex align-items-center justify-content-center hover-lift" style={{ width: '40px', height: '40px', borderRadius: '50%', backgroundColor: 'var(--bg-secondary)' }}>
-            <span style={{ fontSize: '1.2rem', lineHeight: 1 }}>←</span>
-          </button>
-          <div className="fw-bold text-dark text-uppercase" style={{ fontSize: '0.85rem', letterSpacing: '2px' }}>Activity</div>
-          <div style={{ width: '40px' }}></div>
-        </header>
+    <div className="journal-page w-100 min-vh-100 d-flex flex-md-row flex-column" style={{ backgroundColor: 'var(--bg-primary)' }}>
 
-        <main className="container flex-grow-1 py-4 d-flex flex-column align-items-center" style={{ maxWidth: '600px' }}>
+      {/* Desktop Sidebar */}
+      <aside className="desktop-sidebar d-none d-md-flex flex-column justify-content-between py-5 px-4 border-end bg-transparent" style={{ width: '260px', height: '100vh', position: 'sticky', top: 0, zIndex: 100 }}>
+        <div>
+          <div className="mb-5 px-2">
+            <Link to="/journal" className="navbar-brand text-decoration-none">
+              <span className="thoughts-brand thoughts-brand--md">Thoughts.</span>
+            </Link>
+          </div>
+          <Navigation isDesktop={true} />
+        </div>
+
+        <div className="profile-section mt-auto pt-4 border-top">
+          <div className="d-flex flex-column gap-3">
+            <Link to="/journal/settings" className="sidebar-profile-card">
+              <div className="profile-avatar">
+                {user.displayName?.split(' ').map(n => n[0]).join('').toUpperCase() || 'U'}
+              </div>
+              <div className="profile-info">
+                <p className="profile-name">{user.displayName}</p>
+              </div>
+            </Link>
+            <button onClick={handleLogout} className="sidebar-logout-btn">
+              Logout
+            </button>
+          </div>
+        </div>
+      </aside>
+
+      {/* Mobile Bottom Navigation */}
+      <div className="d-md-none">
+        <Navigation isDesktop={false} />
+      </div>
+
+      {/* Main Content */}
+      <main className="flex-grow-1 animate-fade-in overflow-auto w-100" style={{ backgroundColor: 'var(--bg-primary)' }}>
+        <div className="py-5 px-4 ps-md-5 d-flex flex-column align-items-center" style={{ maxWidth: '600px', margin: '0 auto' }}>
+          {user && user.isAnonymous && <GuestWarning />}
 
           {/* Hero Section */}
           <div className="text-center mb-5 animate-slide-up">
@@ -185,9 +216,6 @@ function StreakCalendar() {
                     aria-valuemax="100"
                   ></div>
                 </div>
-                {streakGoal && currentStreak >= streakGoal && (
-                  <p className="xx-small text-success fw-bold text-uppercase mt-2 mb-0">Goal Reached! 🏆</p>
-                )}
               </div>
             </div>
           </div>
@@ -232,9 +260,9 @@ function StreakCalendar() {
               <span className="text-uppercase">Today</span>
             </div>
           </div>
-        </main>
-      </div>
-    </>
+        </div>
+      </main>
+    </div>
   );
 }
 
