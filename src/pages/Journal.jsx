@@ -226,11 +226,13 @@ function Journal() {
   }, [isWriting, mood, design, searchQuery]);
 
   const handleStartWriting = () => {
+    setIsWriting(true);
     setShowMoodModal(true);
   };
 
   useEffect(() => {
     if (location.state?.startWriting) {
+      setIsWriting(true);
       setShowMoodModal(true);
       window.history.replaceState({}, document.title);
     }
@@ -557,7 +559,7 @@ function Journal() {
                     <span className="thoughts-brand thoughts-brand--md">Thoughts.</span>
                   </Link>
                 </div>
-                <Navigation onAddEntry={() => setShowMoodModal(true)} isDesktop={true} />
+                <Navigation onAddEntry={handleStartWriting} isDesktop={true} />
               </div>
 
               <div className="profile-section mt-auto pt-4 border-top">
@@ -586,7 +588,7 @@ function Journal() {
 
             {/* Mobile Bottom Navigation */}
             <div className="d-md-none">
-              <Navigation onAddEntry={() => setShowMoodModal(true)} isDesktop={false} />
+              <Navigation onAddEntry={handleStartWriting} isDesktop={false} />
             </div>
           </>
         )}
